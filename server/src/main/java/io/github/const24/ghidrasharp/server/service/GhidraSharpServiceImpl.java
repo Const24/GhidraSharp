@@ -2,7 +2,10 @@ package io.github.const24.ghidrasharp.server.service;
 
 import io.github.const24.ghidrasharp.proto.DecompileReply;
 import io.github.const24.ghidrasharp.proto.DecompileRequest;
+import io.github.const24.ghidrasharp.proto.FunctionInfo;
 import io.github.const24.ghidrasharp.proto.GhidraSharpServiceGrpc;
+import io.github.const24.ghidrasharp.proto.ListFunctionsReply;
+import io.github.const24.ghidrasharp.proto.ListFunctionsRequest;
 import io.github.const24.ghidrasharp.proto.OpenProgramReply;
 import io.github.const24.ghidrasharp.proto.OpenProgramRequest;
 import io.github.const24.ghidrasharp.proto.PingReply;
@@ -62,6 +65,29 @@ public final class GhidraSharpServiceImpl extends GhidraSharpServiceGrpc.GhidraS
                 .setSignature(nullToEmpty(r.signature()))
                 .setEntryAddress(nullToEmpty(r.entryAddress()))
                 .setError(nullToEmpty(r.error()));
+
+        responseObserver.onNext(reply.build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void listFunctions(ListFunctionsRequest request, StreamObserver<ListFunctionsReply> responseObserver) {
+        GhidraEngine.ListResult r = engine.listFunctions(request.getIncludeCalls());
+
+        ListFunctionsReply.Builder reply = ListFunctionsReply.newBuilder()
+                .setSuccess(r.success())
+                .setError(nullToEmpty(r.error()));
+
+        for (GhidraEngine.FunctionSummary fn : r.functions()) {
+            reply.addFunctions(FunctionInfo.newBuilder()
+                    .setName(nullToEmpty(fn.name()))
+                    .setEntryAddress(nullToEmpty(fn.entryAddress()))
+                    .setSize(fn.size())
+                    .setParameterCount(fn.parameterCount())
+                    .setIsThunk(fn.thunk())
+                    .addAllCalls(fn.calls())
+                    .build());
+        }
 
         responseObserver.onNext(reply.build());
         responseObserver.onCompleted();

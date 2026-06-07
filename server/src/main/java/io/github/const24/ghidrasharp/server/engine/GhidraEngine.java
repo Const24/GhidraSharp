@@ -1,5 +1,7 @@
 package io.github.const24.ghidrasharp.server.engine;
 
+import java.util.List;
+
 /**
  * The thin Ghidra surface the gRPC service delegates to.
  *
@@ -20,6 +22,9 @@ public interface GhidraEngine {
 
     /** Decompile a function identified by entry address (hex) or name. */
     DecompileResult decompile(String address, String name, int timeoutSeconds);
+
+    /** List the functions in the current program (optionally with each one's callees). */
+    ListResult listFunctions(boolean includeCalls);
 
     /** Result of opening a program. */
     record OpenResult(
@@ -45,6 +50,24 @@ public interface GhidraEngine {
 
         public static DecompileResult failure(String error) {
             return new DecompileResult(false, "", "", "", error);
+        }
+    }
+
+    /** One function's summary, sized for client-side querying. */
+    record FunctionSummary(
+            String name,
+            String entryAddress,
+            long size,
+            int parameterCount,
+            boolean thunk,
+            List<String> calls) {
+    }
+
+    /** Result of listing functions. */
+    record ListResult(boolean success, List<FunctionSummary> functions, String error) {
+
+        public static ListResult failure(String error) {
+            return new ListResult(false, List.of(), error);
         }
     }
 }

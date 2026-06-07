@@ -16,6 +16,8 @@ import ghidra.util.task.TaskMonitor;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * {@link GhidraEngine} backed by Ghidra running as a library (headless).
@@ -133,6 +135,37 @@ public final class GhidraLibraryEngine implements GhidraEngine {
             }
         } catch (Exception e) {
             return DecompileResult.failure(describe(e));
+        }
+    }
+
+    @Override
+    public ListResult listFunctions(boolean includeCalls) {
+        try {
+            synchronized (lock) {
+                if (program == null) {
+                    return ListResult.failure("no program open; call OpenProgram first");
+                }
+                List<FunctionSummary> out = new ArrayList<>(program.getFunctionManager().getFunctionCount());
+                for (Function fn : program.getFunctionManager().getFunctions(true)) {
+                    List<String> calls = List.of();
+                    if (includeCalls) {
+                        calls = new ArrayList<>();
+                        for (Function callee : fn.getCalledFunctions(TaskMonitor.DUMMY)) {
+                            calls.add(callee.getName());
+                        }
+                    }
+                    out.add(new FunctionSummary(
+                            fn.getName(),
+                            fn.getEntryPoint().toString(),
+                            fn.getBody().getNumAddresses(),
+                            fn.getParameterCount(),
+                            fn.isThunk(),
+                            calls));
+                }
+                return new ListResult(true, out, "");
+            }
+        } catch (Exception e) {
+            return ListResult.failure(describe(e));
         }
     }
 

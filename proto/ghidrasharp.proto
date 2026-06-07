@@ -26,6 +26,11 @@ service GhidraSharpService {
 
   // Decompile a single function to C, identified by entry address or name.
   rpc DecompileFunction(DecompileRequest) returns (DecompileReply);
+
+  // List the functions in the current program. The returned set is meant to be
+  // queried client-side (LINQ), so it carries enough per-function detail to
+  // filter on without a round trip per function.
+  rpc ListFunctions(ListFunctionsRequest) returns (ListFunctionsReply);
 }
 
 message PingRequest {
@@ -82,4 +87,25 @@ message DecompileReply {
   string signature = 3;
   string entry_address = 4;
   string error = 5;
+}
+
+message ListFunctionsRequest {
+  // Populate FunctionInfo.calls (the callees of each function). Costs an extra
+  // pass over the call graph, so it is opt-in.
+  bool include_calls = 1;
+}
+
+message FunctionInfo {
+  string name = 1;
+  string entry_address = 2;
+  uint64 size = 3;            // number of addresses in the function body
+  int32 parameter_count = 4;
+  bool is_thunk = 5;
+  repeated string calls = 6;  // names of called functions (when include_calls)
+}
+
+message ListFunctionsReply {
+  bool success = 1;
+  repeated FunctionInfo functions = 2;
+  string error = 3;
 }

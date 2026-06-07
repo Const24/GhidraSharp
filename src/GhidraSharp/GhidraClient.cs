@@ -79,6 +79,26 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
     private async Task<DecompileReply> DecompileAsync(DecompileRequest request, CancellationToken ct)
         => await _client.DecompileFunctionAsync(request, cancellationToken: ct);
 
+    /// <summary>
+    /// List the functions in the current program. The result is a plain list,
+    /// ready to query with LINQ (e.g. <c>funcs.Where(f =&gt; f.Calls.Contains("..."))</c>).
+    /// </summary>
+    /// <param name="includeCalls">
+    /// Populate each function's <c>Calls</c> (its callees). Costs an extra pass
+    /// over the call graph server-side.
+    /// </param>
+    /// <param name="ct">Cancellation token.</param>
+    public async Task<IReadOnlyList<FunctionInfo>> ListFunctionsAsync(bool includeCalls = false, CancellationToken ct = default)
+    {
+        var reply = await _client.ListFunctionsAsync(
+            new ListFunctionsRequest { IncludeCalls = includeCalls }, cancellationToken: ct);
+        if (!reply.Success)
+        {
+            throw new InvalidOperationException($"ListFunctions failed: {reply.Error}");
+        }
+        return reply.Functions;
+    }
+
     /// <inheritdoc/>
     public void Dispose() => _channel.Dispose();
 
