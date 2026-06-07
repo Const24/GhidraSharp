@@ -18,6 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * {@link GhidraEngine} backed by Ghidra running as a library (headless).
@@ -116,26 +117,60 @@ public final class GhidraLibraryEngine implements GhidraEngine {
                     String which = (address != null && !address.isBlank()) ? "address " + address : "name " + name;
                     return DecompileResult.failure("no function found at " + which);
                 }
-
-                int timeout = timeoutSeconds > 0 ? timeoutSeconds : DEFAULT_TIMEOUT_SECONDS;
-                DecompileResults results = decomp.decompileFunction(fn, timeout, TaskMonitor.DUMMY);
-                if (results == null || !results.decompileCompleted()) {
-                    String err = (results != null && results.getErrorMessage() != null)
-                            ? results.getErrorMessage()
-                            : "decompiler returned no result";
-                    return DecompileResult.failure(err.isBlank() ? "decompilation did not complete" : err);
-                }
-
-                return new DecompileResult(
-                        true,
-                        results.getDecompiledFunction().getC(),
-                        results.getDecompiledFunction().getSignature(),
-                        fn.getEntryPoint().toString(),
-                        "");
+                return decompileOne(fn, timeoutSeconds);
             }
         } catch (Exception e) {
             return DecompileResult.failure(describe(e));
         }
+    }
+
+    @Override
+    public void decompileMany(List<String> addresses, boolean all, int timeoutSeconds,
+                              Consumer<DecompileResult> sink) {
+        synchronized (lock) {
+            if (program == null || decomp == null) {
+                sink.accept(DecompileResult.failure("no program open; call OpenProgram first"));
+                return;
+            }
+            if (all) {
+                for (Function fn : program.getFunctionManager().getFunctions(true)) {
+                    sink.accept(safeDecompile(fn, timeoutSeconds));
+                }
+            } else {
+                for (String address : addresses) {
+                    Function fn = resolveFunction(address, null);
+                    sink.accept(fn == null
+                            ? DecompileResult.failure("no function found at address " + address)
+                            : safeDecompile(fn, timeoutSeconds));
+                }
+            }
+        }
+    }
+
+    /** Decompile one function; never throws (errors become a failure result for that function). */
+    private DecompileResult safeDecompile(Function fn, int timeoutSeconds) {
+        try {
+            return decompileOne(fn, timeoutSeconds);
+        } catch (Exception e) {
+            return DecompileResult.failure(describe(e));
+        }
+    }
+
+    private DecompileResult decompileOne(Function fn, int timeoutSeconds) {
+        int timeout = timeoutSeconds > 0 ? timeoutSeconds : DEFAULT_TIMEOUT_SECONDS;
+        DecompileResults results = decomp.decompileFunction(fn, timeout, TaskMonitor.DUMMY);
+        if (results == null || !results.decompileCompleted()) {
+            String err = (results != null && results.getErrorMessage() != null)
+                    ? results.getErrorMessage()
+                    : "decompiler returned no result";
+            return DecompileResult.failure(err.isBlank() ? "decompilation did not complete" : err);
+        }
+        return new DecompileResult(
+                true,
+                results.getDecompiledFunction().getC(),
+                results.getDecompiledFunction().getSignature(),
+                fn.getEntryPoint().toString(),
+                "");
     }
 
     @Override

@@ -1,5 +1,6 @@
 package io.github.const24.ghidrasharp.server.service;
 
+import io.github.const24.ghidrasharp.proto.DecompileFunctionsRequest;
 import io.github.const24.ghidrasharp.proto.DecompileReply;
 import io.github.const24.ghidrasharp.proto.DecompileRequest;
 import io.github.const24.ghidrasharp.proto.FunctionInfo;
@@ -59,15 +60,28 @@ public final class GhidraSharpServiceImpl extends GhidraSharpServiceGrpc.GhidraS
                 request.getName(),
                 request.getTimeoutSeconds());
 
-        DecompileReply.Builder reply = DecompileReply.newBuilder()
+        responseObserver.onNext(toReply(r));
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void decompileFunctions(DecompileFunctionsRequest request, StreamObserver<DecompileReply> responseObserver) {
+        engine.decompileMany(
+                request.getAddressesList(),
+                request.getAll(),
+                request.getTimeoutSeconds(),
+                result -> responseObserver.onNext(toReply(result)));
+        responseObserver.onCompleted();
+    }
+
+    private static DecompileReply toReply(GhidraEngine.DecompileResult r) {
+        return DecompileReply.newBuilder()
                 .setSuccess(r.success())
                 .setCCode(nullToEmpty(r.cCode()))
                 .setSignature(nullToEmpty(r.signature()))
                 .setEntryAddress(nullToEmpty(r.entryAddress()))
-                .setError(nullToEmpty(r.error()));
-
-        responseObserver.onNext(reply.build());
-        responseObserver.onCompleted();
+                .setError(nullToEmpty(r.error()))
+                .build();
     }
 
     @Override

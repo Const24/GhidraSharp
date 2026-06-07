@@ -85,6 +85,19 @@ if (opts.TryGetValue("rom", out var rom))
             foreach (var f in callers.Take(10)) Console.WriteLine($"  {f.EntryAddress}  {f.Name}");
         }
     }
+
+    if (opts.ContainsKey("decompile-all"))
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        int ok = 0, fail = 0;
+        await foreach (var r in ghidra.DecompileManyAsync(all: true))
+        {
+            if (r.Success) ok++; else fail++;
+        }
+        sw.Stop();
+        var perSec = (ok + fail) / Math.Max(1.0, sw.Elapsed.TotalSeconds);
+        Console.WriteLine($"[batch] decompiled {ok} ok / {fail} failed in {sw.ElapsedMilliseconds} ms ({perSec:F0} func/s)");
+    }
 }
 
 return 0;

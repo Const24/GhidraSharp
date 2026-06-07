@@ -27,6 +27,11 @@ service GhidraSharpService {
   // Decompile a single function to C, identified by entry address or name.
   rpc DecompileFunction(DecompileRequest) returns (DecompileReply);
 
+  // Batch decompile, streamed back one result at a time. One request decompiles
+  // many functions inside the JVM, so the per-call gRPC round trip is paid once
+  // instead of per function (the basis for competitive throughput vs pyghidra).
+  rpc DecompileFunctions(DecompileFunctionsRequest) returns (stream DecompileReply);
+
   // List the functions in the current program. The returned set is meant to be
   // queried client-side (LINQ), so it carries enough per-function detail to
   // filter on without a round trip per function.
@@ -87,6 +92,17 @@ message DecompileReply {
   string signature = 3;
   string entry_address = 4;
   string error = 5;
+}
+
+message DecompileFunctionsRequest {
+  // Entry addresses (hex) to decompile. Ignored when all=true.
+  repeated string addresses = 1;
+
+  // Decompile every function in the program (a whole-program sweep).
+  bool all = 2;
+
+  // Per-function decompiler timeout. 0 => server default.
+  int32 timeout_seconds = 3;
 }
 
 message ListFunctionsRequest {

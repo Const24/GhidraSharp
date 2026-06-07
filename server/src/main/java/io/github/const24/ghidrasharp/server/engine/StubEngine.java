@@ -30,4 +30,10 @@ public final class StubEngine implements GhidraEngine {
     public ListResult listFunctions(boolean includeCalls) {
         return ListResult.failure("ListFunctions not implemented yet (StubEngine)");
     }
+
+    @Override
+    public void decompileMany(java.util.List<String> addresses, boolean all, int timeoutSeconds,
+                              java.util.function.Consumer<DecompileResult> sink) {
+        sink.accept(DecompileResult.failure("DecompileFunctions not implemented yet (StubEngine)"));
+    }
 }

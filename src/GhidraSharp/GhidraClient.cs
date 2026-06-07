@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+using Grpc.Core;
 using Grpc.Net.Client;
 using Const24.GhidraSharp.Protocol;
 using ProtoSvc = Const24.GhidraSharp.Protocol.GhidraSharpService;
@@ -78,6 +80,34 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
 
     private async Task<DecompileReply> DecompileAsync(DecompileRequest request, CancellationToken ct)
         => await _client.DecompileFunctionAsync(request, cancellationToken: ct);
+
+    /// <summary>
+    /// Batch decompile, streamed: one round trip, results arrive as they are
+    /// produced server-side. Pass <paramref name="all"/> to sweep the whole
+    /// program, or specific entry <paramref name="addresses"/> (hex).
+    /// </summary>
+    /// <param name="addresses">Entry addresses to decompile (ignored when <paramref name="all"/> is true).</param>
+    /// <param name="all">Decompile every function in the program.</param>
+    /// <param name="timeoutSeconds">Per-function decompiler timeout (0 = server default).</param>
+    /// <param name="ct">Cancellation token.</param>
+    public async IAsyncEnumerable<DecompileReply> DecompileManyAsync(
+        IEnumerable<string>? addresses = null,
+        bool all = false,
+        int timeoutSeconds = 0,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        var request = new DecompileFunctionsRequest { All = all, TimeoutSeconds = timeoutSeconds };
+        if (addresses is not null)
+        {
+            request.Addresses.AddRange(addresses);
+        }
+
+        using var call = _client.DecompileFunctions(request, cancellationToken: ct);
+        await foreach (var reply in call.ResponseStream.ReadAllAsync(ct))
+        {
+            yield return reply;
+        }
+    }
 
     /// <summary>
     /// List the functions in the current program. The result is a plain list,
