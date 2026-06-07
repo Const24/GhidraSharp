@@ -74,3 +74,21 @@ protobuf {
 application {
     mainClass = 'io.github.const24.ghidrasharp.server.GhidraSharpServer'
 }
+
+// Emit a Java @argfile (classpath + main class) so a non-Gradle launcher (the
+// C# GhidraServer) can start the server with `java @<file>`. Keeps the Ghidra
+// jars in place (layout/native discovery) and dodges the Windows command-line
+// length limit.
+tasks.register('writeServerArgs') {
+    dependsOn 'classes'
+    def out = layout.buildDirectory.file('ghidrasharp-java.args')
+    outputs.file(out)
+    def cpProvider = sourceSets.main.runtimeClasspath
+    def mainClassProvider = application.mainClass
+    doLast {
+        // Backslash is an escape character inside a Java @argfile, so emit the
+        // classpath with forward slashes (accepted by the JVM on Windows too).
+        def cp = cpProvider.asPath.replace('\\', '/')
+        out.get().asFile.text = "-cp\n\"${cp}\"\n${mainClassProvider.get()}\n"
+    }
+}

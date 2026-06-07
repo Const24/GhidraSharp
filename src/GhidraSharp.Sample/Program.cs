@@ -1,32 +1,63 @@
 using Const24.GhidraSharp;
 
-// Minimal smoke client for the GhidraSharp bridge.
+// Smoke / demo client for the GhidraSharp bridge.
 //
-//   GhidraSharp.Sample [--server http://127.0.0.1:50080]
-//                      [--rom <path-or-domainfile>] [--lang <languageId>]
+//   GhidraSharp.Sample [--server http://127.0.0.1:50080 | --spawn [--argfile <path>]]
+//                      [--rom <path-or-domainfile>] [--project <gpr>] [--lang <id>]
 //                      [--addr 0x21e0 | --name FUN_000021e0]
+//                      [--list [--calls FUN_xxxx]]
+//                      [--decompile-all [--dump <file>]]
 //
-// With no --rom it just pings the server. With --rom it opens the program and,
-// if --addr/--name is given, decompiles that function.
+// --spawn starts (and stops) its own Java server; otherwise it connects to one
+// already running at --server.
 
 var opts = ParseArgs(args);
 var server = opts.GetValueOrDefault("server", "http://127.0.0.1:50080");
 
-await using var ghidra = GhidraClient.Connect(server);
+GhidraServer? spawned = null;
+GhidraClient ghidra;
+if (opts.ContainsKey("spawn"))
+{
+    spawned = await GhidraServer.StartAsync(new GhidraServerOptions
+    {
+        ArgFile = opts.GetValueOrDefault("argfile", "server/build/ghidrasharp-java.args"),
+    });
+    Console.WriteLine($"[spawn] server started on port {spawned.Port}");
+    ghidra = spawned.Client;
+}
+else
+{
+    ghidra = GhidraClient.Connect(server);
+}
 
 try
 {
-    var pong = await ghidra.PingAsync("hello from C#");
-    Console.WriteLine($"[ping] server up, Ghidra {pong.GhidraVersion}: \"{pong.Message}\"");
+    return await Run(ghidra, opts, server);
 }
-catch (Exception ex)
+finally
 {
-    Console.Error.WriteLine($"[ping] could not reach server at {server}: {ex.Message}");
-    return 1;
+    if (spawned is not null) await spawned.DisposeAsync();
+    else await ghidra.DisposeAsync();
 }
 
-if (opts.TryGetValue("rom", out var rom))
+static async Task<int> Run(GhidraClient ghidra, Dictionary<string, string> opts, string server)
 {
+    try
+    {
+        var pong = await ghidra.PingAsync("hello from C#");
+        Console.WriteLine($"[ping] server up, Ghidra {pong.GhidraVersion}: \"{pong.Message}\"");
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"[ping] could not reach server at {server}: {ex.Message}");
+        return 1;
+    }
+
+    if (!opts.TryGetValue("rom", out var rom))
+    {
+        return 0;
+    }
+
     var open = await ghidra.OpenProgramAsync(
         rom,
         projectPath: opts.GetValueOrDefault("project", ""),
@@ -65,22 +96,18 @@ if (opts.TryGetValue("rom", out var rom))
         Console.WriteLine($"[list] {funcs.Count} functions");
 
         // The whole point of the migration: query the program with LINQ.
-        var biggest = funcs
-            .OrderByDescending(f => f.Size)
-            .Take(5)
-            .Select(f => $"  {f.EntryAddress}  {f.Size,6}b  {f.ParameterCount}p  {f.Name}");
         Console.WriteLine("[linq] 5 largest functions:");
-        foreach (var line in biggest) Console.WriteLine(line);
+        foreach (var f in funcs.OrderByDescending(f => f.Size).Take(5))
+        {
+            Console.WriteLine($"  {f.EntryAddress}  {f.Size,6}b  {f.ParameterCount}p  {f.Name}");
+        }
 
-        var hubs = funcs.Where(f => f.Calls.Count >= 10).Count();
+        var hubs = funcs.Count(f => f.Calls.Count >= 10);
         Console.WriteLine($"[linq] functions that call >=10 others: {hubs}");
 
         if (opts.TryGetValue("calls", out var callee))
         {
-            var callers = funcs
-                .Where(f => f.Calls.Contains(callee))
-                .OrderBy(f => f.Name)
-                .ToList();
+            var callers = funcs.Where(f => f.Calls.Contains(callee)).OrderBy(f => f.Name).ToList();
             Console.WriteLine($"[linq] {callers.Count} functions call \"{callee}\":");
             foreach (var f in callers.Take(10)) Console.WriteLine($"  {f.EntryAddress}  {f.Name}");
         }
@@ -88,19 +115,32 @@ if (opts.TryGetValue("rom", out var rom))
 
     if (opts.ContainsKey("decompile-all"))
     {
+        opts.TryGetValue("dump", out var dumpPath);
+        using var dump = dumpPath is not null ? new StreamWriter(dumpPath, append: false) : null;
+
         var sw = System.Diagnostics.Stopwatch.StartNew();
         int ok = 0, fail = 0;
         await foreach (var r in ghidra.DecompileManyAsync(all: true))
         {
-            if (r.Success) ok++; else fail++;
+            if (r.Success)
+            {
+                ok++;
+                dump?.Write($">>> {r.EntryAddress}\n{r.CCode}");
+            }
+            else
+            {
+                fail++;
+            }
         }
         sw.Stop();
+
         var perSec = (ok + fail) / Math.Max(1.0, sw.Elapsed.TotalSeconds);
         Console.WriteLine($"[batch] decompiled {ok} ok / {fail} failed in {sw.ElapsedMilliseconds} ms ({perSec:F0} func/s)");
+        if (dumpPath is not null) Console.WriteLine($"[batch] dump -> {dumpPath}");
     }
-}
 
-return 0;
+    return 0;
+}
 
 static Dictionary<string, string> ParseArgs(string[] argv)
 {
