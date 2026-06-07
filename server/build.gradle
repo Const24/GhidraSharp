@@ -1,0 +1,76 @@
+plugins {
+    id 'application'
+    id 'com.google.protobuf' version '0.10.0'
+}
+
+group = 'io.github.const24'
+version = '0.1.0-alpha'
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    grpcVersion = '1.81.0'
+    // protobuf-java 4.35.x is the Java runtime paired with C# Google.Protobuf 3.35.x
+    // (same protobuf release). protoc artifact must match the runtime.
+    protobufVersion = '4.35.0'
+    // Ghidra is consumed as a local library (it is not published to Maven). The
+    // jars are referenced in place so Ghidra's layout discovery can find the
+    // installation (module data, sleigh specs, the native decompiler).
+    ghidraInstall = System.getenv('GHIDRA_INSTALL_DIR') ?: 'C:/ghidra_12.1_PUBLIC'
+}
+
+// All Ghidra module jars, minus the ones that would clash with our managed deps.
+def ghidraJars = fileTree(ghidraInstall) {
+    include 'Ghidra/**/lib/*.jar'
+    exclude 'Ghidra/Debug/**'    // ships protobuf-java 4.31; we pin 4.35
+    exclude '**/guava*.jar'      // let grpc's guava serve both (forward-compatible)
+    exclude '**/*-src.jar'
+}
+
+dependencies {
+    implementation "io.grpc:grpc-protobuf:${grpcVersion}"
+    implementation "io.grpc:grpc-stub:${grpcVersion}"
+    runtimeOnly   "io.grpc:grpc-netty-shaded:${grpcVersion}"
+    implementation "com.google.protobuf:protobuf-java:${protobufVersion}"
+    // javax.annotation.Generated referenced by generated gRPC stubs.
+    compileOnly   "org.apache.tomcat:annotations-api:6.0.53"
+}
+
+// Generate from the single shared contract at the repo root.
+sourceSets {
+    main {
+        proto {
+            srcDir '../proto'
+        }
+    }
+}
+
+// Ghidra-as-library: add jars straight to the source set's classpaths rather
+// than as a dependency, so the protobuf plugin does not try to scan them for
+// .proto files (a configured fileTree breaks its include-path extraction).
+sourceSets.main.compileClasspath += ghidraJars
+sourceSets.main.runtimeClasspath += ghidraJars
+
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:${protobufVersion}"
+    }
+    plugins {
+        grpc {
+            artifact = "io.grpc:protoc-gen-grpc-java:${grpcVersion}"
+        }
+    }
+    generateProtoTasks {
+        all().each { task ->
+            task.plugins {
+                grpc {}
+            }
+        }
+    }
+}
+
+application {
+    mainClass = 'io.github.const24.ghidrasharp.server.GhidraSharpServer'
+}

@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+// GhidraSharp wire contract.
+// One service, served by the Java GhidraSharpServer (Ghidra-as-library) and
+// consumed by the C# Const24.GhidraSharp client. Keep this file the single
+// source of truth: both sides generate from it, nobody hand-writes DTOs.
+package ghidrasharp.v1;
+
+option csharp_namespace = "Const24.GhidraSharp.Protocol";
+option java_package = "io.github.const24.ghidrasharp.proto";
+option java_multiple_files = true;
+option java_outer_classname = "GhidraSharpProto";
+
+// The bridged subset of Ghidra. Starts as a vertical slice (open a program,
+// decompile a function) and grows one RPC at a time as RomForge needs it.
+// Named *Service to avoid colliding with the Const24.GhidraSharp namespace on
+// the generated C# side.
+service GhidraSharpService {
+  // Liveness + handshake. Returns the running Ghidra version so the client can
+  // confirm it is talking to a real Ghidra without opening a program.
+  rpc Ping(PingRequest) returns (PingReply);
+
+  // Open (and, if needed, import + analyze) a program. The server holds it as
+  // the current program for subsequent calls. Idempotent per (project, program).
+  rpc OpenProgram(OpenProgramRequest) returns (OpenProgramReply);
+
+  // Decompile a single function to C, identified by entry address or name.
+  rpc DecompileFunction(DecompileRequest) returns (DecompileReply);
+}
+
+message PingRequest {
+  string message = 1;
+}
+
+message PingReply {
+  string message = 1;
+  string ghidra_version = 2;
+}
+
+message OpenProgramRequest {
+  // A Ghidra project directory or .gpr file. If empty, the server uses a
+  // scratch project under its own data dir.
+  string project_path = 1;
+
+  // Either a domain-file path inside the project (e.g. "/AG572"), or a path to
+  // an importable binary on disk. The server decides based on whether it
+  // already exists in the project.
+  string program_path = 2;
+
+  // Optional language/compiler-spec id used only when importing a raw binary
+  // (e.g. "SuperH4:BE:32:default"). Ignored when opening an existing program.
+  string language_id = 3;
+
+  // Run auto-analysis after import. No-op when opening an already-analyzed
+  // program.
+  bool analyze = 4;
+}
+
+message OpenProgramReply {
+  bool success = 1;
+  string program_name = 2;
+  string language_id = 3;
+  uint64 image_base = 4;
+  uint32 function_count = 5;
+  string error = 6;
+}
+
+message DecompileRequest {
+  // Entry address as hex ("0x21e0") or decimal. Takes precedence over name.
+  string address = 1;
+
+  // Function name (e.g. "FUN_000021e0" or a user-applied name).
+  string name = 2;
+
+  // Decompiler timeout. 0 => server default.
+  int32 timeout_seconds = 3;
+}
+
+message DecompileReply {
+  bool success = 1;
+  string c_code = 2;
+  string signature = 3;
+  string entry_address = 4;
+  string error = 5;
+}

@@ -1,0 +1,29 @@
+# ---- .NET ----
+bin/
+obj/
+*.user
+.vs/
+artifacts/
+*.nupkg
+
+# ---- Java / Gradle ----
+.gradle/
+server/build/
+server/.gradle/
+build/
+
+# ---- Ghidra ----
+# Scratch projects the server may create while testing.
+*.gpr
+*.rep/
+.ghidra/
+ghidra_scratch/
+
+# ---- Local dev tooling (bootstrap Gradle dist; the wrapper handles Gradle) ----
+.tooling/
+
+# ---- IDE / OS ----
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
