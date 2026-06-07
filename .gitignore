@@ -27,3 +27,6 @@ ghidra_scratch/
 *.iml
 .DS_Store
 Thumbs.db
+
+# ---- Benchmark dumps ----
+bench/*_dump.txt
