@@ -1,6 +1,7 @@
 package io.github.const24.ghidrasharp.server.engine;
 
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /**
@@ -27,9 +28,12 @@ public interface GhidraEngine {
     /**
      * Batch decompile, pushing each result to {@code sink} as it is produced (so
      * the caller can stream them). When {@code all} is true the whole program is
-     * swept; otherwise {@code addresses} (hex entry points) are decompiled.
+     * swept; otherwise {@code addresses} (hex entry points) are decompiled. The
+     * sweep stops early once {@code cancelled} returns true (e.g. the client
+     * disconnected), so a cancelled batch doesn't keep decompiling.
      */
-    void decompileMany(List<String> addresses, boolean all, int timeoutSeconds, Consumer<DecompileResult> sink);
+    void decompileMany(List<String> addresses, boolean all, int timeoutSeconds,
+                       BooleanSupplier cancelled, Consumer<DecompileResult> sink);
 
     /** List the functions in the current program (optionally with each one's callees). */
     ListResult listFunctions(boolean includeCalls);

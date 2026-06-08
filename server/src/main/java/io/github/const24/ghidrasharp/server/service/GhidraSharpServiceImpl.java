@@ -56,6 +56,7 @@ import io.github.const24.ghidrasharp.proto.RenameSymbolRequest;
 import io.github.const24.ghidrasharp.proto.SymbolsAtRequest;
 import io.github.const24.ghidrasharp.proto.Variable;
 import io.github.const24.ghidrasharp.server.engine.GhidraEngine;
+import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 
 /** Maps the generated gRPC service onto a {@link GhidraEngine}. Wire glue only. */
@@ -111,12 +112,18 @@ public final class GhidraSharpServiceImpl extends GhidraSharpServiceGrpc.GhidraS
 
     @Override
     public void decompileFunctions(DecompileFunctionsRequest request, StreamObserver<DecompileReply> responseObserver) {
+        // Server-streaming: the observer exposes client cancellation so a batch can
+        // stop early instead of decompiling the whole program after a disconnect.
+        ServerCallStreamObserver<DecompileReply> observer = (ServerCallStreamObserver<DecompileReply>) responseObserver;
         engine.decompileMany(
                 request.getAddressesList(),
                 request.getAll(),
                 request.getTimeoutSeconds(),
-                result -> responseObserver.onNext(toReply(result)));
-        responseObserver.onCompleted();
+                observer::isCancelled,
+                result -> observer.onNext(toReply(result)));
+        if (!observer.isCancelled()) {
+            observer.onCompleted();
+        }
     }
 
     private static DecompileReply toReply(GhidraEngine.DecompileResult r) {

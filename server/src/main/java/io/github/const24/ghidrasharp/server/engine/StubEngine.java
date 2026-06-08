@@ -33,6 +33,7 @@ public final class StubEngine implements GhidraEngine {
 
     @Override
     public void decompileMany(java.util.List<String> addresses, boolean all, int timeoutSeconds,
+                              java.util.function.BooleanSupplier cancelled,
                               java.util.function.Consumer<DecompileResult> sink) {
         sink.accept(DecompileResult.failure("DecompileFunctions not implemented yet (StubEngine)"));
     }

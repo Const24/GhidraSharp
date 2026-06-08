@@ -3,6 +3,7 @@ package io.github.const24.ghidrasharp.server;
 import io.github.const24.ghidrasharp.server.engine.GhidraEngine;
 
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /** A {@link GhidraEngine} returning known, canned data — lets the service mapping be tested with no Ghidra. */
@@ -35,7 +36,8 @@ final class FakeEngine implements GhidraEngine {
     }
 
     @Override
-    public void decompileMany(List<String> addresses, boolean all, int timeoutSeconds, Consumer<DecompileResult> sink) {
+    public void decompileMany(List<String> addresses, boolean all, int timeoutSeconds,
+                              BooleanSupplier cancelled, Consumer<DecompileResult> sink) {
         sink.accept(new DecompileResult(true, "a", "void a(void)", "00001000", ""));
         sink.accept(new DecompileResult(true, "b", "void b(void)", "00002000", ""));
     }

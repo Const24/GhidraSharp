@@ -46,6 +46,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /**
@@ -156,7 +157,7 @@ public final class GhidraLibraryEngine implements GhidraEngine {
 
     @Override
     public void decompileMany(List<String> addresses, boolean all, int timeoutSeconds,
-                              Consumer<DecompileResult> sink) {
+                              BooleanSupplier cancelled, Consumer<DecompileResult> sink) {
         synchronized (lock) {
             if (program == null || decomp == null) {
                 sink.accept(DecompileResult.failure("no program open; call OpenProgram first"));
@@ -164,10 +165,16 @@ public final class GhidraLibraryEngine implements GhidraEngine {
             }
             if (all) {
                 for (Function fn : program.getFunctionManager().getFunctions(true)) {
+                    if (cancelled.getAsBoolean()) {
+                        return;
+                    }
                     sink.accept(safeDecompile(fn, timeoutSeconds));
                 }
             } else {
                 for (String address : addresses) {
+                    if (cancelled.getAsBoolean()) {
+                        return;
+                    }
                     Function fn = resolveFunction(address, null);
                     sink.accept(fn == null
                             ? DecompileResult.failure("no function found at address " + address)
