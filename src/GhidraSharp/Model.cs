@@ -407,4 +407,9 @@ public sealed class GhidraException : Exception
     public GhidraException(string message) : base(message)
     {
     }
+
+    /// <summary>Create a <see cref="GhidraException"/> wrapping an underlying error.</summary>
+    public GhidraException(string message, Exception innerException) : base(message, innerException)
+    {
+    }
 }

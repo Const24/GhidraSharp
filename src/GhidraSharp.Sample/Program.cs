@@ -2,7 +2,7 @@ using Const24.GhidraSharp;
 
 // Smoke / demo client for the GhidraSharp bridge.
 //
-//   GhidraSharp.Sample [--server http://127.0.0.1:50080 | --spawn [--argfile <path>]]
+//   GhidraSharp.Sample [--server http://127.0.0.1:50080 | --spawn [--serverdir <dir> | --argfile <path>]]
 //                      [--rom <path-or-domainfile>] [--project <gpr>] [--lang <id>]
 //                      [--addr 0x21e0 | --name FUN_000021e0]
 //                      [--list [--calls FUN_xxxx]]
@@ -19,10 +19,10 @@ GhidraServer? spawned = null;
 GhidraClient ghidra;
 if (opts.ContainsKey("spawn"))
 {
-    spawned = await GhidraServer.StartAsync(new GhidraServerOptions
-    {
-        ArgFile = opts.GetValueOrDefault("argfile", "server/build/ghidrasharp-java.args"),
-    });
+    var startOpts = opts.TryGetValue("serverdir", out var serverDir)
+        ? new GhidraServerOptions { ServerDirectory = serverDir, GhidraInstallDir = opts.GetValueOrDefault("ghidra") }
+        : new GhidraServerOptions { ArgFile = opts.GetValueOrDefault("argfile", "server/build/ghidrasharp-java.args"), GhidraInstallDir = opts.GetValueOrDefault("ghidra") };
+    spawned = await GhidraServer.StartAsync(startOpts);
     Console.WriteLine($"[spawn] server started on port {spawned.Port}");
     ghidra = spawned.Client;
 }

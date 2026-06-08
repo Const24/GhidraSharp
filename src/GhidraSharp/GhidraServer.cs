@@ -9,10 +9,18 @@ namespace Const24.GhidraSharp;
 public sealed class GhidraServerOptions
 {
     /// <summary>
-    /// Path to the Java <c>@argfile</c> produced by the server's
-    /// <c>writeServerArgs</c> Gradle task (classpath + main class).
+    /// Path to an unzipped server distribution — the folder that holds <c>lib/</c> and the
+    /// launcher scripts, i.e. <c>ghidrasharp-server-&lt;version&gt;</c> downloaded from the
+    /// GitHub Releases. Set this <b>or</b> <see cref="ArgFile"/>.
     /// </summary>
-    public required string ArgFile { get; init; }
+    public string? ServerDirectory { get; init; }
+
+    /// <summary>
+    /// Path to the Java <c>@argfile</c> produced by the server's <c>writeServerArgs</c>
+    /// Gradle task (classpath + main class) — for running from a source build. Set this
+    /// <b>or</b> <see cref="ServerDirectory"/>.
+    /// </summary>
+    public string? ArgFile { get; init; }
 
     /// <summary>Java executable. Defaults to <c>$JAVA_HOME/bin/java</c>, else <c>java</c> on PATH.</summary>
     public string? JavaExe { get; init; }
@@ -32,9 +40,11 @@ public sealed class GhidraServerOptions
 /// connected to it. Dispose to shut the server down.
 /// </summary>
 /// <remarks>
-/// This is the dev/embedding convenience: no manual <c>gradlew run</c>, no port
-/// juggling. Run the <c>writeServerArgs</c> Gradle task once to produce the
-/// argfile, then <see cref="StartAsync"/> handles the rest.
+/// Point <see cref="GhidraServerOptions.ServerDirectory"/> at an unzipped
+/// <c>ghidrasharp-server</c> (download it from the GitHub Releases) and
+/// <see cref="StartAsync"/> launches it for you — no manual run, no port juggling.
+/// When building from source, set <see cref="GhidraServerOptions.ArgFile"/> from the
+/// <c>writeServerArgs</c> task instead.
 /// </remarks>
 public sealed class GhidraServer : IAsyncDisposable, IDisposable
 {
@@ -57,12 +67,7 @@ public sealed class GhidraServer : IAsyncDisposable, IDisposable
     public static async Task<GhidraServer> StartAsync(GhidraServerOptions options, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(options);
-        var argFile = Path.GetFullPath(options.ArgFile);
-        if (!File.Exists(argFile))
-        {
-            throw new FileNotFoundException(
-                $"Java argfile not found: {argFile}. Run the server's 'writeServerArgs' Gradle task first.", argFile);
-        }
+        var launchArgs = BuildLaunchArgs(options);
 
         int port = options.Port ?? FindFreePort();
 
@@ -74,7 +79,10 @@ public sealed class GhidraServer : IAsyncDisposable, IDisposable
             UseShellExecute = false,
             CreateNoWindow = true,
         };
-        psi.ArgumentList.Add("@" + argFile);
+        foreach (var arg in launchArgs)
+        {
+            psi.ArgumentList.Add(arg);
+        }
         psi.Environment["GHIDRASHARP_PORT"] = port.ToString();
         if (!string.IsNullOrWhiteSpace(options.GhidraInstallDir))
         {
@@ -170,6 +178,76 @@ public sealed class GhidraServer : IAsyncDisposable, IDisposable
             }
         }
         return OperatingSystem.IsWindows() ? "java.exe" : "java";
+    }
+
+    private const string MainClass = "io.github.const24.ghidrasharp.server.GhidraSharpServer";
+
+    private static List<string> BuildLaunchArgs(GhidraServerOptions options)
+    {
+        if (!string.IsNullOrWhiteSpace(options.ServerDirectory))
+        {
+            return BuildClasspathArgs(options);
+        }
+        if (!string.IsNullOrWhiteSpace(options.ArgFile))
+        {
+            var argFile = Path.GetFullPath(options.ArgFile);
+            if (!File.Exists(argFile))
+            {
+                throw new FileNotFoundException(
+                    $"Java argfile not found: {argFile}. Run the server's 'writeServerArgs' Gradle task first.", argFile);
+            }
+            return ["@" + argFile];
+        }
+        throw new InvalidOperationException(
+            "No server to launch. Set GhidraServerOptions.ServerDirectory to an unzipped " +
+            "ghidrasharp-server-<version> (download it from " +
+            "https://github.com/Const24/GhidraSharp/releases), or set ArgFile when building from source.");
+    }
+
+    private static List<string> BuildClasspathArgs(GhidraServerOptions options)
+    {
+        var dir = Path.GetFullPath(options.ServerDirectory!);
+        var libDir = Path.Combine(dir, "lib");
+        if (!Directory.Exists(libDir))
+        {
+            throw new DirectoryNotFoundException(
+                $"ServerDirectory '{dir}' has no lib/ folder. Point it at an unzipped " +
+                "ghidrasharp-server-<version> from https://github.com/Const24/GhidraSharp/releases.");
+        }
+
+        var ghidra = options.GhidraInstallDir ?? Environment.GetEnvironmentVariable("GHIDRA_INSTALL_DIR");
+        if (string.IsNullOrWhiteSpace(ghidra) || !Directory.Exists(ghidra))
+        {
+            throw new DirectoryNotFoundException(
+                "Ghidra install not found. Set GhidraServerOptions.GhidraInstallDir (or the " +
+                "GHIDRA_INSTALL_DIR environment variable) to your Ghidra 12.x install.");
+        }
+
+        var jars = new List<string>(Directory.GetFiles(libDir, "*.jar"));
+        jars.AddRange(FindGhidraJars(ghidra));
+
+        return ["-cp", string.Join(Path.PathSeparator, jars), MainClass];
+    }
+
+    // Mirrors the server build's Ghidra fileTree: Ghidra/**/lib/*.jar, minus the Debug
+    // tree, guava (gRPC's is used instead), and -src jars.
+    private static IEnumerable<string> FindGhidraJars(string ghidraInstall)
+    {
+        var root = Path.Combine(ghidraInstall, "Ghidra");
+        if (!Directory.Exists(root))
+        {
+            return [];
+        }
+        return Directory.EnumerateFiles(root, "*.jar", SearchOption.AllDirectories)
+            .Where(p =>
+            {
+                var u = p.Replace('\\', '/');
+                var name = Path.GetFileName(p);
+                return u.Contains("/lib/")
+                    && !u.Contains("/Debug/")
+                    && !name.StartsWith("guava", StringComparison.OrdinalIgnoreCase)
+                    && !name.EndsWith("-src.jar", StringComparison.OrdinalIgnoreCase);
+            });
     }
 
     private static void Append(StringBuilder log, string? line)

@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using Grpc.Core;
+using Grpc.Core.Interceptors;
 using Grpc.Net.Client;
 using Const24.GhidraSharp.Protocol;
 using ProtoSvc = Const24.GhidraSharp.Protocol.GhidraSharpService;
@@ -15,7 +16,12 @@ namespace Const24.GhidraSharp;
 /// One <see cref="GhidraClient"/> owns one channel; create it once and reuse it.
 /// The server holds a single "current program" — call
 /// <see cref="OpenProgramAsync"/> before decompiling or querying references.
-/// For driving a server you also start/stop yourself, see <see cref="GhidraServer"/>.
+/// <para>
+/// This client needs a running <c>GhidraSharpServer</c>: download
+/// <c>ghidrasharp-server</c> from https://github.com/Const24/GhidraSharp/releases
+/// and run it, then <see cref="Connect"/> to it — or let <see cref="GhidraServer"/>
+/// spawn and own one for you.
+/// </para>
 /// </remarks>
 public sealed class GhidraClient : IAsyncDisposable, IDisposable
 {
@@ -29,7 +35,8 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
     private GhidraClient(GrpcChannel channel)
     {
         _channel = channel;
-        _client = new ProtoSvc.GhidraSharpServiceClient(channel);
+        var invoker = channel.Intercept(new ServerUnavailableInterceptor());
+        _client = new ProtoSvc.GhidraSharpServiceClient(invoker);
     }
 
     /// <summary>Connect to a server listening at <paramref name="address"/> (e.g. <c>http://127.0.0.1:50080</c>).</summary>
