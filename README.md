@@ -67,15 +67,9 @@ using Const24.GhidraSharp;
 await using var server = await GhidraServer.StartAsync();
 var ghidra = server.Client;
 
-// import the binary, auto-analyze it, and save it as a project.
-// languageId is the target chip's processor — here Renesas SH-2A (Subaru ECUs).
-var program = await ghidra.CreateProjectAsync(
-    binaryPath:      @"C:\firmware\ecu.bin",
-    projectLocation: @"C:\firmware\ghidra-projects",
-    projectName:     "ecu",
-    languageId:      "SuperH:BE:32:SH-2A");
-
-Console.WriteLine($"{program.FunctionCount} functions found");
+// import a raw firmware dump and analyze it — no project to manage.
+// languageId is the target chip's processor (here Renesas SH-2A, Subaru ECUs).
+await ghidra.OpenProgramAsync(@"C:\firmware\ecu.bin", languageId: "SuperH:BE:32:SH-2A");
 
 // list every function Ghidra recovered
 var functions = await ghidra.ListFunctionsAsync();
@@ -90,9 +84,15 @@ Console.WriteLine(dec.CCode);
 `languageId` is the only Ghidra-specific input: pick the processor that matches
 your chip — e.g. `SuperH:BE:32:SH-2A`, `ARM:LE:32:v7`, `x86:LE:64:default`. Not
 sure which? `ListLanguagesAsync()` enumerates every one Ghidra supports (filter
-like `ListLanguagesAsync("SuperH")`). Already have an analyzed Ghidra project?
-Open it with `OpenProgramAsync(...)`. Running your own (or a shared) server? Skip
-`StartAsync` and use `GhidraClient.Connect("http://127.0.0.1:50080")`.
+like `ListLanguagesAsync("SuperH")`).
+
+That example is transient — nothing is written to disk. To **save a project**
+(analyze once, reopen fast, persist renames) use
+`CreateProjectAsync(binaryPath, projectLocation, projectName, languageId)` — it
+writes `<projectName>.gpr` + a `<projectName>.rep` folder, which you reopen later
+with `OpenProgramAsync(name, projectPath: @"...\ecu.gpr")`. Running your own (or a
+shared) server instead? Skip `StartAsync` and use
+`GhidraClient.Connect("http://127.0.0.1:50080")`.
 
 ### Running the server
 

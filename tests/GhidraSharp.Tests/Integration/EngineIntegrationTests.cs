@@ -15,6 +15,7 @@ public sealed class IntegrationFixture : IAsyncLifetime
     public string SkipReason { get; private set; } = "";
     public GhidraClient Client => _server!.Client;
     public string GprPath { get; private set; } = "";
+    public string ClassFile { get; private set; } = "";
 
     private GhidraServer? _server;
     private string? _work;
@@ -54,6 +55,7 @@ public sealed class IntegrationFixture : IAsyncLifetime
         _proj = Directory.CreateTempSubdirectory("ghs_itproj_").FullName;
         await Client.CreateProjectAsync(Path.Combine(_work, "Hello.class"), _proj, "IT");
         GprPath = Path.Combine(_proj, "IT.gpr");
+        ClassFile = Path.Combine(_work, "Hello.class");
         Available = true;
     }
 
@@ -175,5 +177,20 @@ public sealed class EngineIntegrationTests(IntegrationFixture fixture) : IClassF
         var langs = await Client.ListLanguagesAsync();
         Assert.NotEmpty(langs);
         Assert.Contains(langs, l => l.Id == "x86:LE:64:default"); // always present in Ghidra
+    }
+
+    [SkippableFact]
+    public async Task Importing_a_binary_transiently_needs_no_project()
+    {
+        // OpenProgram with a binary and no project path imports into a scratch program —
+        // the "just show me the functions" path, no projectLocation/name.
+        Skip.IfNot(fixture.Available, fixture.SkipReason);
+        var info = await Client.OpenProgramAsync(fixture.ClassFile); // JVM .class auto-detects the language
+        Assert.True(info.FunctionCount > 0);
+
+        var fns = await Client.ListFunctionsAsync();
+        Assert.NotEmpty(fns);
+        var dec = await Client.DecompileAtAsync(fns[0].EntryPoint);
+        Assert.True(dec.IsSuccess);
     }
 }
