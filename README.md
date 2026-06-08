@@ -26,6 +26,45 @@ fills that gap with a deliberately small, typed surface:
 * **`server/`** — the Java gRPC server that runs Ghidra as a library and serves
   decompilation / analysis (Gradle build).
 
+## Requirements
+
+* **.NET 8 or later** — the client multi-targets `net8.0` and `net10.0`.
+* **JDK 21 or later** — to build and run the server (Ghidra 12.1 requires 21+).
+* **Ghidra 12.1** — point `GHIDRA_INSTALL_DIR` at the install.
+
+## Quickstart
+
+Drive a running server with the typed client:
+
+```csharp
+using Const24.GhidraSharp;
+
+// connect to a GhidraSharpServer (see "Running the server" below)
+using var ghidra = GhidraClient.Connect("http://127.0.0.1:50080");
+
+// open an analyzed project — or CreateProjectAsync(...) to import a fresh binary
+await ghidra.OpenProgramAsync("firmware", projectPath: @"C:\proj\firmware.gpr");
+
+// query with plain C# / LINQ
+foreach (var fn in await ghidra.ListFunctionsAsync())
+    Console.WriteLine($"{fn.EntryPoint}  {fn.Name}");
+
+// decompile to C
+var dec = await ghidra.DecompileAtAsync("0x00001000");
+Console.WriteLine(dec.CCode);
+```
+
+Prefer the client to own the process? `GhidraServer.StartAsync(...)` spawns the
+server, hands you a connected `Client`, and stops it on dispose.
+
+### Running the server
+
+```sh
+cd server
+./gradlew writeServerArgs                 # generate the launch argfile (once)
+GHIDRA_INSTALL_DIR=/path/to/ghidra_12.1_PUBLIC java @build/ghidrasharp-java.args
+```
+
 ## Status
 
 Working bridge. The surface grows one RPC at a time as consumers need it.
