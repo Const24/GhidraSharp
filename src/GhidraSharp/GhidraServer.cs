@@ -140,7 +140,7 @@ public sealed class GhidraServer : IAsyncDisposable, IDisposable
         }
     }
 
-    private static int FindFreePort()
+    internal static int FindFreePort()
     {
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
@@ -154,7 +154,7 @@ public sealed class GhidraServer : IAsyncDisposable, IDisposable
         }
     }
 
-    private static string ResolveJava(string? javaExe)
+    internal static string ResolveJava(string? javaExe)
     {
         if (!string.IsNullOrWhiteSpace(javaExe))
         {

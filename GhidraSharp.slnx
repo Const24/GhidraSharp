@@ -6,4 +6,7 @@
   <Folder Name="/bench/">
     <Project Path="bench/GhidraSharp.Parity/GhidraSharp.Parity.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/GhidraSharp.Tests/GhidraSharp.Tests.csproj" />
+  </Folder>
 </Solution>

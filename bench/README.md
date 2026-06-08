@@ -1,4 +1,8 @@
-# Tests & benchmarks
+# Acceptance & benchmarks
+
+> Unit, contract and integration tests live in [`../tests/`](../tests/) and
+> `../server/src/test` (run with `dotnet test` / `gradlew test`). This folder is
+> the **acceptance + benchmark** layer: cross-tool parity against pyghidra.
 
 Proof that GhidraSharp is **not worse than official pyghidra** — same output,
 comparable speed — that anyone can reproduce **on their own machine in one

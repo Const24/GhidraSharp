@@ -1,5 +1,7 @@
 # GhidraSharp
 
+[![CI](https://github.com/Const24/GhidraSharp/actions/workflows/ci.yml/badge.svg)](https://github.com/Const24/GhidraSharp/actions/workflows/ci.yml)
+
 A typed **C# client for [Ghidra](https://ghidra-sre.org/)** over a small gRPC bridge.
 No Python in the chain.
 
@@ -65,6 +67,28 @@ function detail, data types) at comparable speed — see the
 ```sh
 dotnet build GhidraSharp.slnx
 ```
+
+## Testing
+
+A test pyramid; the fast tiers need no Ghidra and are the CI badge above.
+
+```sh
+# fast — C# unit + contract tests (client ↔ in-process fake server). No Ghidra/JVM.
+dotnet test tests/GhidraSharp.Tests --filter "Category!=Integration"
+
+# Java service mapping tests (JUnit 5 + in-process gRPC + a fake engine)
+cd server && ./gradlew test
+
+# integration — real Ghidra end-to-end (spawns the server, builds a JVM target with
+# javac, asserts decompile/rename+save/space-qualified-address behaviours). Gated:
+# skipped unless GHIDRA_INSTALL_DIR is set and the launch argfile exists.
+cd server && ./gradlew writeServerArgs            # once, to produce the argfile
+dotnet test tests/GhidraSharp.Tests --filter "Category=Integration"
+```
+
+[`bench/`](bench/) is the acceptance + benchmark layer (byte-for-byte parity vs
+pyghidra); `python bench/verify.py` runs it. Tests under [`tests/`](tests/) and
+`server/src/test` are the unit/contract/integration layers.
 
 ## Scope — what's bridged, and what isn't
 

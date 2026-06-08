@@ -36,6 +36,16 @@ dependencies {
     implementation "com.google.protobuf:protobuf-java:${protobufVersion}"
     // javax.annotation.Generated referenced by generated gRPC stubs.
     compileOnly   "org.apache.tomcat:annotations-api:6.0.53"
+
+    // Tests: JUnit 5 + grpc in-process transport (no Ghidra needed — these stay
+    // off the Ghidra fileTree, which is on the main source set only).
+    testImplementation "org.junit.jupiter:junit-jupiter:5.11.4"
+    testRuntimeOnly    "org.junit.platform:junit-platform-launcher"
+    testImplementation "io.grpc:grpc-inprocess:${grpcVersion}"
+}
+
+test {
+    useJUnitPlatform()
 }
 
 // Generate from the single shared contract at the repo root.

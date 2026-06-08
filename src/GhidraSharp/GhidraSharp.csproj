@@ -35,7 +35,11 @@
        Access=Internal keeps the generated wire types out of the public API; only
        the hand-written, documented result records in Model.cs surface. -->
   <ItemGroup>
-    <Protobuf Include="..\..\proto\ghidrasharp.proto" GrpcServices="Client" Access="Internal" Link="proto\ghidrasharp.proto" />
+    <InternalsVisibleTo Include="GhidraSharp.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Protobuf Include="..\..\proto\ghidrasharp.proto" GrpcServices="Both" Access="Internal" Link="proto\ghidrasharp.proto" />
   </ItemGroup>
 
   <ItemGroup>
