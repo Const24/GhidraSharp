@@ -228,6 +228,60 @@ public sealed record FunctionDetail
     public required IReadOnlyList<string> Callers { get; init; }
 }
 
+/// <summary>A defined data item in the program (a value Ghidra has typed at an address).</summary>
+public sealed record DataItem
+{
+    /// <summary>The data's address, as hex.</summary>
+    public required string Address { get; init; }
+
+    /// <summary>The data type's display name, e.g. <c>"float"</c>, <c>"char[16]"</c>.</summary>
+    public required string DataType { get; init; }
+
+    /// <summary>Length in bytes.</summary>
+    public required int Length { get; init; }
+
+    /// <summary>Ghidra's default value representation (e.g. <c>"1.5"</c>, <c>"0x1234"</c>, a string literal).</summary>
+    public required string Value { get; init; }
+
+    /// <summary>Whether the data is a pointer.</summary>
+    public required bool IsPointer { get; init; }
+
+    /// <summary>When <see cref="IsPointer"/>, the address it points to (hex); otherwise empty.</summary>
+    public required string PointerTarget { get; init; }
+
+    /// <summary>False when there is no defined data at the requested address.</summary>
+    public required bool Defined { get; init; }
+}
+
+/// <summary>A data type known to the program (a struct, enum, typedef, pointer, built-in, …).</summary>
+public sealed record GhidraDataType
+{
+    /// <summary>The type's name.</summary>
+    public required string Name { get; init; }
+
+    /// <summary>Its display name (how it renders in listings).</summary>
+    public required string DisplayName { get; init; }
+
+    /// <summary>Its category path, e.g. <c>"/MyStructs/Header"</c>.</summary>
+    public required string Path { get; init; }
+
+    /// <summary>Kind: <c>Structure</c>, <c>Enum</c>, <c>TypeDef</c>, <c>Union</c>, <c>Pointer</c>, <c>Array</c>, <c>BuiltIn</c>, or <c>Other</c>.</summary>
+    public required string Kind { get; init; }
+
+    /// <summary>Length in bytes, or <c>-1</c> for a dynamically-sized type.</summary>
+    public required int Length { get; init; }
+}
+
+/// <summary>The captured output of a <see cref="GhidraClient.RunScriptAsync"/> call.</summary>
+public sealed record ScriptOutput
+{
+    /// <summary>Everything the script wrote to standard out.</summary>
+    public required string Stdout { get; init; }
+
+    /// <summary>Everything the script wrote to standard error.</summary>
+    public required string Stderr { get; init; }
+}
+
 /// <summary>Error raised when the Ghidra server reports a failure for a request.</summary>
 public sealed class GhidraException : Exception
 {

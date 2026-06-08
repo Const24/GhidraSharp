@@ -12,6 +12,13 @@ import io.github.const24.ghidrasharp.proto.OpenProgramRequest;
 import io.github.const24.ghidrasharp.proto.PingReply;
 import io.github.const24.ghidrasharp.proto.PingRequest;
 import com.google.protobuf.ByteString;
+import io.github.const24.ghidrasharp.proto.ApplyDataTypeRequest;
+import io.github.const24.ghidrasharp.proto.DataAtRequest;
+import io.github.const24.ghidrasharp.proto.DataItem;
+import io.github.const24.ghidrasharp.proto.DataReply;
+import io.github.const24.ghidrasharp.proto.DataTypeInfo;
+import io.github.const24.ghidrasharp.proto.DataTypesReply;
+import io.github.const24.ghidrasharp.proto.DataTypesRequest;
 import io.github.const24.ghidrasharp.proto.FunctionDetail;
 import io.github.const24.ghidrasharp.proto.FunctionDetailReply;
 import io.github.const24.ghidrasharp.proto.FunctionRequest;
@@ -26,6 +33,8 @@ import io.github.const24.ghidrasharp.proto.ReferencesReply;
 import io.github.const24.ghidrasharp.proto.ReferencesRequest;
 import io.github.const24.ghidrasharp.proto.ReadBytesReply;
 import io.github.const24.ghidrasharp.proto.ReadBytesRequest;
+import io.github.const24.ghidrasharp.proto.RunScriptReply;
+import io.github.const24.ghidrasharp.proto.RunScriptRequest;
 import io.github.const24.ghidrasharp.proto.RenameSymbolReply;
 import io.github.const24.ghidrasharp.proto.RenameSymbolRequest;
 import io.github.const24.ghidrasharp.proto.SymbolsAtRequest;
@@ -277,6 +286,67 @@ public final class GhidraSharpServiceImpl extends GhidraSharpServiceGrpc.GhidraS
                 .setDataType(nullToEmpty(v.dataType()))
                 .setStorage(nullToEmpty(v.storage()))
                 .build();
+    }
+
+    @Override
+    public void getDataAt(DataAtRequest request, StreamObserver<DataReply> responseObserver) {
+        respondData(engine.dataAt(request.getAddress()), responseObserver);
+    }
+
+    @Override
+    public void applyDataType(ApplyDataTypeRequest request, StreamObserver<DataReply> responseObserver) {
+        respondData(engine.applyDataType(request.getAddress(), request.getDataType()), responseObserver);
+    }
+
+    @Override
+    public void listDataTypes(DataTypesRequest request, StreamObserver<DataTypesReply> responseObserver) {
+        GhidraEngine.DataTypesResult r = engine.listDataTypes(request.getNameContains());
+        DataTypesReply.Builder reply = DataTypesReply.newBuilder()
+                .setSuccess(r.success())
+                .setError(nullToEmpty(r.error()));
+        for (GhidraEngine.DataTypeSummary dt : r.dataTypes()) {
+            reply.addDataTypes(DataTypeInfo.newBuilder()
+                    .setName(nullToEmpty(dt.name()))
+                    .setDisplayName(nullToEmpty(dt.displayName()))
+                    .setPath(nullToEmpty(dt.path()))
+                    .setKind(nullToEmpty(dt.kind()))
+                    .setLength(dt.length())
+                    .build());
+        }
+        responseObserver.onNext(reply.build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void runScript(RunScriptRequest request, StreamObserver<RunScriptReply> responseObserver) {
+        GhidraEngine.ScriptResult r = engine.runScript(request.getScriptPath(), request.getArgsList());
+        responseObserver.onNext(RunScriptReply.newBuilder()
+                .setSuccess(r.success())
+                .setStdout(nullToEmpty(r.stdout()))
+                .setStderr(nullToEmpty(r.stderr()))
+                .setError(nullToEmpty(r.error()))
+                .build());
+        responseObserver.onCompleted();
+    }
+
+    private static void respondData(GhidraEngine.DataResult r, StreamObserver<DataReply> observer) {
+        DataReply.Builder reply = DataReply.newBuilder()
+                .setSuccess(r.success())
+                .setError(nullToEmpty(r.error()));
+        if (r.data() != null) {
+            GhidraEngine.DataItemInfo d = r.data();
+            reply.setData(DataItem.newBuilder()
+                    .setAddress(nullToEmpty(d.address()))
+                    .setDataType(nullToEmpty(d.dataType()))
+                    .setLength(d.length())
+                    .setValue(nullToEmpty(d.value()))
+                    .setIsPointer(d.pointer())
+                    .setPointerTarget(nullToEmpty(d.pointerTarget()))
+                    .setDefined(d.defined())
+                    .build());
+        }
+        observer.onNext(reply.build());
+        observer.onCompleted();
     }
 
     private static String nullToEmpty(String s) {

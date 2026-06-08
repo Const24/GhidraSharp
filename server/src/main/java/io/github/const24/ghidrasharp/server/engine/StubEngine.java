@@ -76,4 +76,24 @@ public final class StubEngine implements GhidraEngine {
     public FunctionDetailResult getFunction(String address, String name, boolean includeCallers) {
         return FunctionDetailResult.failure("GetFunction not implemented yet (StubEngine)");
     }
+
+    @Override
+    public DataResult dataAt(String address) {
+        return DataResult.failure("GetDataAt not implemented yet (StubEngine)");
+    }
+
+    @Override
+    public DataTypesResult listDataTypes(String nameContains) {
+        return DataTypesResult.failure("ListDataTypes not implemented yet (StubEngine)");
+    }
+
+    @Override
+    public DataResult applyDataType(String address, String dataType) {
+        return DataResult.failure("ApplyDataType not implemented yet (StubEngine)");
+    }
+
+    @Override
+    public ScriptResult runScript(String scriptPath, java.util.List<String> args) {
+        return ScriptResult.failure("RunScript not implemented yet (StubEngine)");
+    }
 }

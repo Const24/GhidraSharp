@@ -1,11 +1,20 @@
 package io.github.const24.ghidrasharp.server.engine;
 
 import ghidra.GhidraApplicationLayout;
+import generic.jar.ResourceFile;
 import ghidra.app.decompiler.DecompInterface;
 import ghidra.app.decompiler.DecompileResults;
+import ghidra.app.script.GhidraScript;
+import ghidra.app.script.GhidraScriptProvider;
+import ghidra.app.script.GhidraScriptUtil;
+import ghidra.app.script.GhidraState;
+import ghidra.app.script.ScriptControls;
 import ghidra.app.util.importer.ProgramLoader;
 import ghidra.app.util.opinion.LoadResults;
 import ghidra.base.project.GhidraProject;
+import ghidra.program.model.data.DataType;
+import ghidra.program.model.data.DataTypeManager;
+import ghidra.program.model.listing.Data;
 import ghidra.framework.Application;
 import ghidra.framework.HeadlessGhidraApplicationConfiguration;
 import ghidra.framework.model.DomainFile;
@@ -25,9 +34,12 @@ import ghidra.program.model.symbol.SymbolTable;
 import ghidra.util.task.TaskMonitor;
 
 import java.io.File;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -578,6 +590,183 @@ public final class GhidraLibraryEngine implements GhidraEngine {
                 v.getName(),
                 v.getDataType() != null ? v.getDataType().getDisplayName() : "",
                 String.valueOf(v.getVariableStorage()));
+    }
+
+    @Override
+    public DataResult dataAt(String address) {
+        try {
+            synchronized (lock) {
+                if (program == null) {
+                    return DataResult.failure("no program open; call OpenProgram first");
+                }
+                Address addr = parseAddress(address);
+                if (addr == null) {
+                    return DataResult.failure("bad address: " + address);
+                }
+                Data data = program.getListing().getDataAt(addr);
+                if (data == null) {
+                    return new DataResult(true, new DataItemInfo(addr.toString(), "", 0, "", false, "", false), "");
+                }
+                return new DataResult(true, toDataItem(data), "");
+            }
+        } catch (Exception e) {
+            return DataResult.failure(describe(e));
+        }
+    }
+
+    @Override
+    public DataTypesResult listDataTypes(String nameContains) {
+        try {
+            synchronized (lock) {
+                if (program == null) {
+                    return DataTypesResult.failure("no program open; call OpenProgram first");
+                }
+                String filter = (nameContains == null) ? "" : nameContains.toLowerCase();
+                List<DataTypeSummary> out = new ArrayList<>();
+                Iterator<DataType> it = program.getDataTypeManager().getAllDataTypes();
+                while (it.hasNext()) {
+                    DataType dt = it.next();
+                    if (!filter.isEmpty() && !dt.getName().toLowerCase().contains(filter)) {
+                        continue;
+                    }
+                    out.add(new DataTypeSummary(dt.getName(), dt.getDisplayName(), dt.getPathName(),
+                            kindOf(dt), dt.getLength()));
+                }
+                return new DataTypesResult(true, out, "");
+            }
+        } catch (Exception e) {
+            return DataTypesResult.failure(describe(e));
+        }
+    }
+
+    @Override
+    public DataResult applyDataType(String address, String dataType) {
+        try {
+            synchronized (lock) {
+                if (program == null) {
+                    return DataResult.failure("no program open; call OpenProgram first");
+                }
+                Address addr = parseAddress(address);
+                if (addr == null) {
+                    return DataResult.failure("bad address: " + address);
+                }
+                DataType dt = resolveDataType(dataType);
+                if (dt == null) {
+                    return DataResult.failure("unknown data type: " + dataType);
+                }
+
+                int tx = program.startTransaction("ApplyDataType");
+                boolean committed = false;
+                try {
+                    long len = Math.max(1, dt.getLength());
+                    program.getListing().clearCodeUnits(addr, addr.add(len - 1), false);
+                    Data data = program.getListing().createData(addr, dt);
+                    committed = true;
+                    return new DataResult(true, toDataItem(data), "");
+                } finally {
+                    program.endTransaction(tx, committed);
+                }
+            }
+        } catch (Exception e) {
+            return DataResult.failure(describe(e));
+        }
+    }
+
+    @Override
+    public ScriptResult runScript(String scriptPath, List<String> args) {
+        synchronized (lock) {
+            if (program == null) {
+                return ScriptResult.failure("no program open; call OpenProgram first");
+            }
+            File file = new File(scriptPath);
+            if (!file.isFile()) {
+                return ScriptResult.failure("script not found: " + scriptPath);
+            }
+            ghidra.app.plugin.core.osgi.BundleHost bundleHost = GhidraScriptUtil.acquireBundleHostReference();
+            try {
+                ResourceFile source = new ResourceFile(file);
+                // The script's directory must be a known (enabled) source bundle before
+                // its provider can compile/load the class.
+                ResourceFile scriptDir = source.getParentFile();
+                if (scriptDir != null && bundleHost.getGhidraBundle(scriptDir) == null) {
+                    bundleHost.add(scriptDir, true, false);
+                }
+                GhidraScriptProvider provider = GhidraScriptUtil.getProvider(source);
+                if (provider == null) {
+                    return ScriptResult.failure("no GhidraScript provider for " + scriptPath);
+                }
+                GhidraScript script = provider.getScriptInstance(source, new PrintWriter(System.out));
+                if (args != null && !args.isEmpty()) {
+                    script.setScriptArgs(args.toArray(new String[0]));
+                }
+                GhidraState state = new GhidraState(null, null, program, null, null, null);
+                StringWriter out = new StringWriter();
+                StringWriter err = new StringWriter();
+                ScriptControls controls = new ScriptControls(
+                        new PrintWriter(out, true), new PrintWriter(err, true), TaskMonitor.DUMMY);
+                script.execute(state, controls);
+                return new ScriptResult(true, out.toString(), err.toString(), "");
+            } catch (Exception e) {
+                return ScriptResult.failure(describe(e));
+            } finally {
+                GhidraScriptUtil.releaseBundleHostReference();
+            }
+        }
+    }
+
+    private DataType resolveDataType(String name) {
+        DataTypeManager dtm = program.getDataTypeManager();
+        DataType dt = dtm.getDataType(name);
+        if (dt != null) {
+            return dt;
+        }
+        // Handles built-ins ("float"), pointers ("int *"), arrays ("char[16]"), named types.
+        try {
+            return new ghidra.util.data.DataTypeParser(dtm, dtm, null,
+                    ghidra.util.data.DataTypeParser.AllowedDataTypes.ALL).parse(name);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static DataItemInfo toDataItem(Data data) {
+        String target = "";
+        if (data.isPointer() && data.getValue() instanceof Address pointed) {
+            target = pointed.toString();
+        }
+        return new DataItemInfo(
+                data.getAddress().toString(),
+                data.getDataType().getDisplayName(),
+                data.getLength(),
+                data.getDefaultValueRepresentation(),
+                data.isPointer(),
+                target,
+                true);
+    }
+
+    private static String kindOf(DataType dt) {
+        if (dt instanceof ghidra.program.model.data.Structure) {
+            return "Structure";
+        }
+        if (dt instanceof ghidra.program.model.data.Enum) {
+            return "Enum";
+        }
+        if (dt instanceof ghidra.program.model.data.TypeDef) {
+            return "TypeDef";
+        }
+        if (dt instanceof ghidra.program.model.data.Union) {
+            return "Union";
+        }
+        if (dt instanceof ghidra.program.model.data.Pointer) {
+            return "Pointer";
+        }
+        if (dt instanceof ghidra.program.model.data.Array) {
+            return "Array";
+        }
+        if (dt instanceof ghidra.program.model.data.BuiltInDataType) {
+            return "BuiltIn";
+        }
+        return "Other";
     }
 
     // --- decompile helpers --------------------------------------------------

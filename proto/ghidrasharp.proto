@@ -61,6 +61,19 @@ service GhidraSharpService {
 
   // Full detail for one function: typed signature, parameters, locals, callers.
   rpc GetFunction(FunctionRequest) returns (FunctionDetailReply);
+
+  // The defined data item at an address (type, length, value).
+  rpc GetDataAt(DataAtRequest) returns (DataReply);
+
+  // List data types known to the program (structs, enums, typedefs, ...).
+  rpc ListDataTypes(DataTypesRequest) returns (DataTypesReply);
+
+  // Apply a data type at an address (needs a writable program; in-memory unless saved).
+  rpc ApplyDataType(ApplyDataTypeRequest) returns (DataReply);
+
+  // Escape hatch: run a GhidraScript against the current program and capture its
+  // output. Untyped by design — for the long tail the typed RPCs do not cover.
+  rpc RunScript(RunScriptRequest) returns (RunScriptReply);
 }
 
 message PingRequest {
@@ -278,4 +291,59 @@ message FunctionDetailReply {
   bool success = 1;
   FunctionDetail function = 2;
   string error = 3;
+}
+
+message DataAtRequest {
+  string address = 1;  // hex
+}
+
+message DataItem {
+  string address = 1;
+  string data_type = 2;       // display name, e.g. "float", "char[16]"
+  int32 length = 3;
+  string value = 4;           // Ghidra's default value representation
+  bool is_pointer = 5;
+  string pointer_target = 6;  // address pointed to, when is_pointer
+  bool defined = 7;           // false when there is no defined data at the address
+}
+
+message DataReply {
+  bool success = 1;
+  DataItem data = 2;
+  string error = 3;
+}
+
+message DataTypesRequest {
+  string name_contains = 1;  // optional case-insensitive name filter
+}
+
+message DataTypeInfo {
+  string name = 1;
+  string display_name = 2;
+  string path = 3;    // category path, e.g. "/MyStructs/Header"
+  string kind = 4;    // Structure | Enum | TypeDef | Union | Pointer | Array | BuiltIn | Other
+  int32 length = 5;   // -1 for dynamically-sized types
+}
+
+message DataTypesReply {
+  bool success = 1;
+  repeated DataTypeInfo data_types = 2;
+  string error = 3;
+}
+
+message ApplyDataTypeRequest {
+  string address = 1;
+  string data_type = 2;  // name or path of the type to apply
+}
+
+message RunScriptRequest {
+  string script_path = 1;     // path to a GhidraScript file (.java, .py, ...)
+  repeated string args = 2;
+}
+
+message RunScriptReply {
+  bool success = 1;
+  string stdout = 2;
+  string stderr = 3;
+  string error = 4;
 }

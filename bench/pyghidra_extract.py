@@ -166,6 +166,37 @@ def extract(program, out, timings, timed, DecompInterface, TaskMonitor) -> int:
             (out / "bytes.txt").write_text("".join(lines), encoding="utf-8", newline="")
             return len(funcs)
 
+        from ghidra.program.model.data import (Structure, Enum, TypeDef, Union, Pointer, Array,
+                                                BuiltInDataType)
+
+        def dt_kind(dt):
+            if isinstance(dt, Structure):
+                return "Structure"
+            if isinstance(dt, Enum):
+                return "Enum"
+            if isinstance(dt, TypeDef):
+                return "TypeDef"
+            if isinstance(dt, Union):
+                return "Union"
+            if isinstance(dt, Pointer):
+                return "Pointer"
+            if isinstance(dt, Array):
+                return "Array"
+            if isinstance(dt, BuiltInDataType):
+                return "BuiltIn"
+            return "Other"
+
+        def datatypes():
+            rows = []
+            it = program.getDataTypeManager().getAllDataTypes()
+            while it.hasNext():
+                dt = it.next()
+                rows.append((dt.getPathName(), dt.getName(), dt.getDisplayName(), dt_kind(dt), str(dt.getLength())))
+            rows.sort(key=lambda r: (r[0], r[1], r[3]))
+            (out / "datatypes.txt").write_text("".join("\t".join(r) + "\n" for r in rows),
+                                               encoding="utf-8", newline="")
+            return len(rows)
+
         def dtname(v):
             dt = v.getDataType()
             return dt.getDisplayName() if dt is not None else ""
@@ -191,6 +222,7 @@ def extract(program, out, timings, timed, DecompInterface, TaskMonitor) -> int:
         timed("xrefs_to", xrefs_to)
         timed("bytes", read_bytes)
         timed("function_detail", function_detail)
+        timed("datatypes", datatypes)
 
         (out / "timings.json").write_text(json.dumps(timings, indent=2), encoding="utf-8")
         print(f"[parity/py] done -> {out}")

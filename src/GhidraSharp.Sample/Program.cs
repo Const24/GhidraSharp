@@ -188,6 +188,39 @@ static async Task<int> Run(GhidraClient ghidra, Dictionary<string, string> opts,
         Console.WriteLine($"  locals: {fd.Locals.Count}, callers: {fd.Callers.Count}");
     }
 
+    if (opts.TryGetValue("data", out var dataAddr))
+    {
+        var d = await ghidra.GetDataAtAsync(dataAddr);
+        Console.WriteLine(d.Defined
+            ? $"[data {dataAddr}] {d.DataType} len={d.Length} value={d.Value}{(d.IsPointer ? $" -> {d.PointerTarget}" : "")}"
+            : $"[data {dataAddr}] (no defined data)");
+    }
+
+    if (opts.TryGetValue("datatypes", out var dtFilter))
+    {
+        var filter = dtFilter == "true" ? null : dtFilter;
+        var dts = await ghidra.ListDataTypesAsync(filter);
+        Console.WriteLine($"[datatypes] {dts.Count}{(filter is null ? "" : $" matching \"{filter}\"")}");
+        foreach (var g in dts.GroupBy(d => d.Kind).OrderByDescending(g => g.Count()))
+        {
+            Console.WriteLine($"  {g.Count(),6}x {g.Key}");
+        }
+    }
+
+    if (opts.TryGetValue("apply-type", out var atAddr) && opts.TryGetValue("type", out var atType))
+    {
+        var d = await ghidra.ApplyDataTypeAsync(atAddr, atType);
+        Console.WriteLine($"[apply-type] {atAddr} = {d.DataType} len={d.Length} value={d.Value} (in-memory)");
+    }
+
+    if (opts.TryGetValue("run-script", out var scriptPath))
+    {
+        var output = await ghidra.RunScriptAsync(scriptPath);
+        Console.WriteLine($"[run-script] {scriptPath}:");
+        if (output.Stdout.Length > 0) Console.Write(output.Stdout);
+        if (output.Stderr.Length > 0) Console.Error.Write(output.Stderr);
+    }
+
     if (opts.ContainsKey("decompile-all"))
     {
         opts.TryGetValue("dump", out var dumpPath);

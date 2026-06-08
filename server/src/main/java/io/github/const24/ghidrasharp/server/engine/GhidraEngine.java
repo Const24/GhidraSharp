@@ -58,6 +58,18 @@ public interface GhidraEngine {
     /** Full detail for one function (by entry address or name): typed signature, params, locals, callers. */
     FunctionDetailResult getFunction(String address, String name, boolean includeCallers);
 
+    /** The defined data item at {@code address} (or an undefined marker if none). */
+    DataResult dataAt(String address);
+
+    /** Data types known to the program, optionally filtered by name. */
+    DataTypesResult listDataTypes(String nameContains);
+
+    /** Apply {@code dataType} at {@code address}; needs a writable program. */
+    DataResult applyDataType(String address, String dataType);
+
+    /** Escape hatch: run a GhidraScript against the current program, capturing stdout/stderr. */
+    ScriptResult runScript(String scriptPath, List<String> args);
+
     /** Result of opening a program. */
     record OpenResult(
             boolean success,
@@ -199,6 +211,45 @@ public interface GhidraEngine {
 
         public static FunctionDetailResult failure(String error) {
             return new FunctionDetailResult(false, null, error);
+        }
+    }
+
+    /** A defined data item. */
+    record DataItemInfo(
+            String address,
+            String dataType,
+            int length,
+            String value,
+            boolean pointer,
+            String pointerTarget,
+            boolean defined) {
+    }
+
+    /** Result of a data query (GetDataAt / ApplyDataType). */
+    record DataResult(boolean success, DataItemInfo data, String error) {
+
+        public static DataResult failure(String error) {
+            return new DataResult(false, null, error);
+        }
+    }
+
+    /** One data type. */
+    record DataTypeSummary(String name, String displayName, String path, String kind, int length) {
+    }
+
+    /** Result of a data-types query. */
+    record DataTypesResult(boolean success, List<DataTypeSummary> dataTypes, String error) {
+
+        public static DataTypesResult failure(String error) {
+            return new DataTypesResult(false, List.of(), error);
+        }
+    }
+
+    /** Result of running a GhidraScript. */
+    record ScriptResult(boolean success, String stdout, String stderr, String error) {
+
+        public static ScriptResult failure(String error) {
+            return new ScriptResult(false, "", "", error);
         }
     }
 }

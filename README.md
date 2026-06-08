@@ -38,6 +38,8 @@ Working bridge. The surface grows one RPC at a time as consumers need it.
 * `RenameSymbol` — record a finding back onto the program (needs `writable: true`; in-memory unless saved)
 * `ReadBytes` — raw program memory (feeds a pure-C# byte/table layer)
 * `GetInstructions` — the disassembly listing (mnemonic, operands, bytes)
+* `GetDataAt` / `ListDataTypes` / `ApplyDataType` — defined data and data types
+* `RunScript` — escape hatch: run any GhidraScript and capture its output
 
 Architecture-agnostic by construction — it just forwards a Ghidra language id, so
 the same code drives any processor Ghidra supports (validated on SH-2A firmware
@@ -48,8 +50,9 @@ The public C# API exposes only hand-written, documented result types
 generated gRPC wire types are internal. Names follow Ghidra's own terms so they
 read right to a Ghidra user, with XML docs that also explain each concept to a
 .NET developer new to Ghidra. Validated **byte-for-byte against pyghidra across
-the whole API** (functions, symbols, decompilation, instructions, xrefs, bytes)
-at comparable speed — see the [parity report](bench/REPORT.md) and [bench/](bench/).
+the whole API** (functions, symbols, decompilation, instructions, xrefs, bytes,
+function detail, data types) at comparable speed — see the
+[parity report](bench/REPORT.md) and [bench/](bench/).
 
 ## Building the client
 
@@ -57,12 +60,28 @@ at comparable speed — see the [parity report](bench/REPORT.md) and [bench/](be
 dotnet build GhidraSharp.slnx
 ```
 
-## Why a bridge (and not pyghidra / rizin)
+## Scope — what's bridged, and what isn't
 
-The honest tradeoff: a fixed bridged subset instead of the whole live Ghidra API,
-flat DTOs instead of an in-process object graph, and tight loops must batch
-server-side. In return: a single typed .NET stack with no Python and no JVM in
-the consumer, reviewable end to end.
+GhidraSharp is **not** a mirror of the entire Ghidra API, and doesn't try to be.
+The goal is a curated, typed, documented surface over the **core RE operations**
+(above), each one proven byte-identical to pyghidra. What it intentionally does
+**not** expose:
+
+* **Arbitrary Ghidra API / live object graph** — you get flat result records, not
+  walkable Ghidra objects.
+* **Decompiler internals** — C text and a typed signature, but not `HighFunction`,
+  raw/refined **PCode**, or C-token↔address markup.
+* **In-process scripting semantics** — no ad-hoc evaluation of Java/Python against
+  the live program.
+
+For everything outside the typed surface there's **`RunScript`**: it runs any
+GhidraScript against the current program and returns its output. So you're never
+*more* limited than pyghidra — just less typed for the long tail. Typed RPCs are
+added on demand as consumers need them.
+
+The trade for these limits: a single typed .NET stack, no Python and no JVM in the
+consumer, reviewable end to end, and a correctness story you can verify yourself
+(`bench/`).
 
 ## License
 

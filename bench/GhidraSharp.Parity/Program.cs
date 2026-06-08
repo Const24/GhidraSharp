@@ -140,6 +140,21 @@ await Time("function_detail", async () =>
     return funcs.Count;
 });
 
+await Time("datatypes", async () =>
+{
+    var dts = (await g.ListDataTypesAsync())
+        .OrderBy(d => d.Path, StringComparer.Ordinal)
+        .ThenBy(d => d.Name, StringComparer.Ordinal)
+        .ThenBy(d => d.Kind, StringComparer.Ordinal).ToList();
+    var sb = new StringBuilder();
+    foreach (var d in dts)
+    {
+        sb.Append($"{d.Path}\t{d.Name}\t{d.DisplayName}\t{d.Kind}\t{d.Length}\n");
+    }
+    Write("datatypes.txt", sb);
+    return dts.Count;
+});
+
 File.WriteAllText(Path.Combine(outDir, "timings.json"),
     JsonSerializer.Serialize(timings, new JsonSerializerOptions { WriteIndented = true }));
 Console.WriteLine($"[parity/cs] done -> {outDir}");

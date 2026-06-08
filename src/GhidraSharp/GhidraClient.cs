@@ -361,6 +361,99 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
         Storage = v.Storage,
     };
 
+    /// <summary>The defined data item at <paramref name="address"/> (hex). Check <see cref="DataItem.Defined"/> for "nothing there".</summary>
+    /// <param name="address">The address to read.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="GhidraException">No program is open, or the address is invalid.</exception>
+    public async Task<DataItem> GetDataAtAsync(string address, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(address);
+        var reply = await _client.GetDataAtAsync(new DataAtRequest { Address = address }, cancellationToken: ct);
+        return ToDataItem(reply);
+    }
+
+    /// <summary>List data types known to the program (structs, enums, typedefs, …), optionally filtered by name.</summary>
+    /// <param name="nameContains">Case-insensitive name filter; null/empty returns all.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="GhidraException">No program is open.</exception>
+    public async Task<IReadOnlyList<GhidraDataType>> ListDataTypesAsync(string? nameContains = null, CancellationToken ct = default)
+    {
+        var reply = await _client.ListDataTypesAsync(
+            new DataTypesRequest { NameContains = nameContains ?? "" }, cancellationToken: ct);
+        if (!reply.Success)
+        {
+            throw new GhidraException($"ListDataTypes failed: {reply.Error}");
+        }
+        return reply.DataTypes.Select(d => new GhidraDataType
+        {
+            Name = d.Name,
+            DisplayName = d.DisplayName,
+            Path = d.Path,
+            Kind = d.Kind,
+            Length = d.Length,
+        }).ToList();
+    }
+
+    /// <summary>
+    /// Apply data type <paramref name="dataType"/> at <paramref name="address"/> (by name or path).
+    /// The program must be opened writable; the change is in-memory unless saved.
+    /// </summary>
+    /// <param name="address">Where to apply the type (hex).</param>
+    /// <param name="dataType">Name or path of the type, e.g. <c>"float"</c> or <c>"/MyStructs/Header"</c>.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="GhidraException">Unknown type, read-only program, or it cannot be applied there.</exception>
+    public async Task<DataItem> ApplyDataTypeAsync(string address, string dataType, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(address);
+        ArgumentException.ThrowIfNullOrWhiteSpace(dataType);
+        var reply = await _client.ApplyDataTypeAsync(
+            new ApplyDataTypeRequest { Address = address, DataType = dataType }, cancellationToken: ct);
+        return ToDataItem(reply);
+    }
+
+    /// <summary>
+    /// Escape hatch: run a GhidraScript file against the current program and capture its output.
+    /// For the long tail the typed API does not cover — untyped by design.
+    /// </summary>
+    /// <param name="scriptPath">Path to a GhidraScript file (<c>.java</c>, <c>.py</c>, …).</param>
+    /// <param name="args">Arguments passed to the script (available via its <c>getScriptArgs()</c>).</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="GhidraException">No program is open, the script is missing, or it threw.</exception>
+    public async Task<ScriptOutput> RunScriptAsync(string scriptPath, IEnumerable<string>? args = null, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(scriptPath);
+        var request = new RunScriptRequest { ScriptPath = scriptPath };
+        if (args is not null)
+        {
+            request.Args.AddRange(args);
+        }
+        var reply = await _client.RunScriptAsync(request, cancellationToken: ct);
+        if (!reply.Success)
+        {
+            throw new GhidraException($"RunScript failed: {reply.Error}");
+        }
+        return new ScriptOutput { Stdout = reply.Stdout, Stderr = reply.Stderr };
+    }
+
+    private static DataItem ToDataItem(DataReply reply)
+    {
+        if (!reply.Success || reply.Data is null)
+        {
+            throw new GhidraException($"Data request failed: {reply.Error}");
+        }
+        var d = reply.Data;
+        return new DataItem
+        {
+            Address = d.Address,
+            DataType = d.DataType,
+            Length = d.Length,
+            Value = d.Value,
+            IsPointer = d.IsPointer,
+            PointerTarget = d.PointerTarget,
+            Defined = d.Defined,
+        };
+    }
+
     private static IReadOnlyList<GhidraSymbol> ToSymbols(ListSymbolsReply reply)
     {
         if (!reply.Success)

@@ -10,7 +10,8 @@ import json
 import sys
 from pathlib import Path
 
-ARTIFACTS = ["functions", "symbols", "decompile", "instructions", "xrefs_to", "bytes", "function_detail"]
+ARTIFACTS = ["functions", "symbols", "decompile", "instructions", "xrefs_to", "bytes",
+             "function_detail", "datatypes"]
 
 
 def sha(p: Path) -> str | None:
@@ -56,7 +57,7 @@ def main(argv: list[str]) -> int:
     notes = {
         "functions": "1 call", "symbols": "1 call", "decompile": "1 batch call (streamed)",
         "instructions": "1 call/function", "xrefs_to": "1 call/function", "bytes": "1 call/function",
-        "function_detail": "1 call/function",
+        "function_detail": "1 call/function", "datatypes": "1 call",
     }
     for a, _i, c, p, _h in rows:
         out.append(f"| {a} | {p.get('ms', '?')} | {c.get('ms', '?')} | {notes.get(a, '')} |")
