@@ -13,6 +13,7 @@ import io.github.const24.ghidrasharp.proto.PingReply;
 import io.github.const24.ghidrasharp.proto.PingRequest;
 import com.google.protobuf.ByteString;
 import io.github.const24.ghidrasharp.proto.ApplyDataTypeRequest;
+import io.github.const24.ghidrasharp.proto.CreateProjectRequest;
 import io.github.const24.ghidrasharp.proto.DataAtRequest;
 import io.github.const24.ghidrasharp.proto.DataItem;
 import io.github.const24.ghidrasharp.proto.DataReply;
@@ -35,6 +36,8 @@ import io.github.const24.ghidrasharp.proto.ReadBytesReply;
 import io.github.const24.ghidrasharp.proto.ReadBytesRequest;
 import io.github.const24.ghidrasharp.proto.RunScriptReply;
 import io.github.const24.ghidrasharp.proto.RunScriptRequest;
+import io.github.const24.ghidrasharp.proto.SaveProgramReply;
+import io.github.const24.ghidrasharp.proto.SaveProgramRequest;
 import io.github.const24.ghidrasharp.proto.RenameSymbolReply;
 import io.github.const24.ghidrasharp.proto.RenameSymbolRequest;
 import io.github.const24.ghidrasharp.proto.SymbolsAtRequest;
@@ -347,6 +350,36 @@ public final class GhidraSharpServiceImpl extends GhidraSharpServiceGrpc.GhidraS
         }
         observer.onNext(reply.build());
         observer.onCompleted();
+    }
+
+    @Override
+    public void createProject(CreateProjectRequest request, StreamObserver<OpenProgramReply> responseObserver) {
+        GhidraEngine.OpenResult r = engine.createProject(
+                request.getBinaryPath(),
+                request.getProjectLocation(),
+                request.getProjectName(),
+                request.getLanguageId(),
+                request.getAnalyze());
+
+        responseObserver.onNext(OpenProgramReply.newBuilder()
+                .setSuccess(r.success())
+                .setProgramName(nullToEmpty(r.programName()))
+                .setLanguageId(nullToEmpty(r.languageId()))
+                .setImageBase(r.imageBase())
+                .setFunctionCount(r.functionCount())
+                .setError(nullToEmpty(r.error()))
+                .build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void saveProgram(SaveProgramRequest request, StreamObserver<SaveProgramReply> responseObserver) {
+        GhidraEngine.SaveResult r = engine.saveProgram();
+        responseObserver.onNext(SaveProgramReply.newBuilder()
+                .setSuccess(r.success())
+                .setError(nullToEmpty(r.error()))
+                .build());
+        responseObserver.onCompleted();
     }
 
     private static String nullToEmpty(String s) {

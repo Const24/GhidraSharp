@@ -54,28 +54,37 @@ static async Task<int> Run(GhidraClient ghidra, Dictionary<string, string> opts,
         return 1;
     }
 
-    if (!opts.TryGetValue("rom", out var rom))
+    if (opts.TryGetValue("create-project", out var cpBinary))
+    {
+        var created = await ghidra.CreateProjectAsync(
+            cpBinary,
+            opts.GetValueOrDefault("proj-loc", "."),
+            opts.GetValueOrDefault("proj-name", "ghidrasharp"),
+            opts.GetValueOrDefault("lang", ""));
+        Console.WriteLine($"[create-project] {created.Name} ({created.LanguageId}) functions={created.FunctionCount}");
+    }
+    else if (opts.TryGetValue("rom", out var rom))
+    {
+        try
+        {
+            var program = await ghidra.OpenProgramAsync(
+                rom,
+                projectPath: opts.GetValueOrDefault("project", ""),
+                languageId: opts.GetValueOrDefault("lang", ""),
+                writable: opts.ContainsKey("writable"));
+            Console.WriteLine(
+                $"[open] {program.Name} ({program.LanguageId}) base=0x{program.ImageBase:x} functions={program.FunctionCount}");
+        }
+        catch (GhidraException ex)
+        {
+            Console.Error.WriteLine($"[open] {ex.Message}");
+            return 2;
+        }
+    }
+    else
     {
         return 0;
     }
-
-    ProgramInfo program;
-    try
-    {
-        program = await ghidra.OpenProgramAsync(
-            rom,
-            projectPath: opts.GetValueOrDefault("project", ""),
-            languageId: opts.GetValueOrDefault("lang", ""),
-            writable: opts.ContainsKey("writable"));
-    }
-    catch (GhidraException ex)
-    {
-        Console.Error.WriteLine($"[open] {ex.Message}");
-        return 2;
-    }
-
-    Console.WriteLine(
-        $"[open] {program.Name} ({program.LanguageId}) base=0x{program.ImageBase:x} functions={program.FunctionCount}");
 
     var addr = opts.GetValueOrDefault("addr", "");
     var name = opts.GetValueOrDefault("name", "");
@@ -219,6 +228,12 @@ static async Task<int> Run(GhidraClient ghidra, Dictionary<string, string> opts,
         Console.WriteLine($"[run-script] {scriptPath}:");
         if (output.Stdout.Length > 0) Console.Write(output.Stdout);
         if (output.Stderr.Length > 0) Console.Error.Write(output.Stderr);
+    }
+
+    if (opts.ContainsKey("save"))
+    {
+        await ghidra.SaveProgramAsync();
+        Console.WriteLine("[save] persisted to disk");
     }
 
     if (opts.ContainsKey("decompile-all"))

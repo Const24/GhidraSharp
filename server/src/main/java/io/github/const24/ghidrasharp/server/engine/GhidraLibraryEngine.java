@@ -459,6 +459,83 @@ public final class GhidraLibraryEngine implements GhidraEngine {
                 ins.getLength());
     }
 
+    @Override
+    public OpenResult createProject(String binaryPath, String projectLocation, String projectName,
+                                    String languageId, boolean analyze) {
+        try {
+            ensureInitialized();
+            synchronized (lock) {
+                closeCurrent();
+                File file = new File(binaryPath);
+                if (!file.isFile()) {
+                    return OpenResult.failure("binary not found: " + binaryPath);
+                }
+
+                GhidraProject created = GhidraProject.createProject(projectLocation, projectName, false);
+                boolean opened = false;
+                try {
+                    Program imported = null;
+                    try (LoadResults<Program> results = loaderFor(file, languageId)
+                            .project(created.getProject())
+                            .projectFolderPath("/")
+                            .load()) {
+                        imported = results.getPrimaryDomainObject(this);
+                        if (analyze) {
+                            analyzeInTransaction(imported);
+                        }
+                        results.save(TaskMonitor.DUMMY);   // persist into the new project
+                    } finally {
+                        if (imported != null) {
+                            imported.release(this);        // drop temp consumer; reopen cleanly below
+                        }
+                    }
+
+                    project = created;
+                    program = openProgramFromProject(created, "", true /* writable */);
+                    bindDecompiler(program);
+                    opened = true;
+                    return new OpenResult(
+                            true,
+                            program.getName(),
+                            program.getLanguageID().getIdAsString(),
+                            program.getImageBase().getOffset(),
+                            program.getFunctionManager().getFunctionCount(),
+                            "");
+                } finally {
+                    if (!opened) {
+                        try {
+                            created.close();
+                        } catch (Exception ignore) {
+                            // best effort
+                        }
+                        project = null;
+                        program = null;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            return OpenResult.failure(describe(e));
+        }
+    }
+
+    @Override
+    public SaveResult saveProgram() {
+        try {
+            synchronized (lock) {
+                if (program == null) {
+                    return SaveResult.failure("no program open");
+                }
+                if (project == null) {
+                    return SaveResult.failure("nothing to save to: the program was imported transiently; use CreateProject for a persistent project");
+                }
+                project.save(program);
+                return new SaveResult(true, "");
+            }
+        } catch (Exception e) {
+            return SaveResult.failure(describe(e));
+        }
+    }
+
     // --- open helpers -------------------------------------------------------
 
     private void openFromProject(String projectPath, String desiredProgram, boolean writable) throws Exception {
@@ -515,24 +592,31 @@ public final class GhidraLibraryEngine implements GhidraEngine {
         // Modern, non-deprecated import (GhidraProject.importProgram is forRemoval).
         // The program is loaded into memory with this engine as its consumer and
         // released in closeCurrent(); no scratch project is created.
+        try (LoadResults<Program> results = loaderFor(file, languageId).load()) {
+            program = results.getPrimaryDomainObject(this);
+        }
+        if (analyze) {
+            analyzeInTransaction(program);
+        }
+    }
+
+    private static ProgramLoader.Builder loaderFor(File file, String languageId) {
         ProgramLoader.Builder builder = ProgramLoader.builder().source(file);
         if (languageId != null && !languageId.isBlank()) {
             builder.language(languageId);
         }
-        try (LoadResults<Program> results = builder.load()) {
-            program = results.getPrimaryDomainObject(this);
-        }
-        if (analyze) {
-            // A freshly loaded (non-project) program needs an open transaction for
-            // the analyzers to write into it.
-            int tx = program.startTransaction("Analysis");
-            boolean ok = false;
-            try {
-                GhidraProject.analyze(program);
-                ok = true;
-            } finally {
-                program.endTransaction(tx, ok);
-            }
+        return builder;
+    }
+
+    private static void analyzeInTransaction(Program p) {
+        // A freshly loaded program needs an open transaction for analyzers to write into it.
+        int tx = p.startTransaction("Analysis");
+        boolean ok = false;
+        try {
+            GhidraProject.analyze(p);
+            ok = true;
+        } finally {
+            p.endTransaction(tx, ok);
         }
     }
 

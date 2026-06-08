@@ -74,6 +74,13 @@ service GhidraSharpService {
   // Escape hatch: run a GhidraScript against the current program and capture its
   // output. Untyped by design — for the long tail the typed RPCs do not cover.
   rpc RunScript(RunScriptRequest) returns (RunScriptReply);
+
+  // Import a binary into a NEW persistent Ghidra project on disk (.gpr/.rep),
+  // analyze it, save it, and make it current. Reopen later via OpenProgram.
+  rpc CreateProject(CreateProjectRequest) returns (OpenProgramReply);
+
+  // Persist the current (writable, project-backed) program's changes to disk.
+  rpc SaveProgram(SaveProgramRequest) returns (SaveProgramReply);
 }
 
 message PingRequest {
@@ -346,4 +353,20 @@ message RunScriptReply {
   string stdout = 2;
   string stderr = 3;
   string error = 4;
+}
+
+message CreateProjectRequest {
+  string binary_path = 1;       // binary to import
+  string project_location = 2;  // existing directory to create the project in
+  string project_name = 3;      // project name => <location>/<name>.gpr + .rep
+  string language_id = 4;       // optional language/compiler-spec id
+  bool analyze = 5;
+}
+
+message SaveProgramRequest {
+}
+
+message SaveProgramReply {
+  bool success = 1;
+  string error = 2;
 }

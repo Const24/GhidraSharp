@@ -96,4 +96,15 @@ public final class StubEngine implements GhidraEngine {
     public ScriptResult runScript(String scriptPath, java.util.List<String> args) {
         return ScriptResult.failure("RunScript not implemented yet (StubEngine)");
     }
+
+    @Override
+    public OpenResult createProject(String binaryPath, String projectLocation, String projectName,
+                                    String languageId, boolean analyze) {
+        return OpenResult.failure("CreateProject not implemented yet (StubEngine)");
+    }
+
+    @Override
+    public SaveResult saveProgram() {
+        return SaveResult.failure("SaveProgram not implemented yet (StubEngine)");
+    }
 }

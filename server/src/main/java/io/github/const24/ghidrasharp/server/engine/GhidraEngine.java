@@ -70,6 +70,13 @@ public interface GhidraEngine {
     /** Escape hatch: run a GhidraScript against the current program, capturing stdout/stderr. */
     ScriptResult runScript(String scriptPath, List<String> args);
 
+    /** Import a binary into a new persistent project on disk, analyze, save, and make it current. */
+    OpenResult createProject(String binaryPath, String projectLocation, String projectName,
+                             String languageId, boolean analyze);
+
+    /** Persist the current (writable, project-backed) program to disk. */
+    SaveResult saveProgram();
+
     /** Result of opening a program. */
     record OpenResult(
             boolean success,
@@ -250,6 +257,14 @@ public interface GhidraEngine {
 
         public static ScriptResult failure(String error) {
             return new ScriptResult(false, "", "", error);
+        }
+    }
+
+    /** Result of saving the current program. */
+    record SaveResult(boolean success, String error) {
+
+        public static SaveResult failure(String error) {
+            return new SaveResult(false, error);
         }
     }
 }

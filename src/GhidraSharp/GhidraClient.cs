@@ -86,14 +86,74 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
             throw new GhidraException($"OpenProgram failed: {reply.Error}");
         }
 
-        return new ProgramInfo
-        {
-            Name = reply.ProgramName,
-            LanguageId = reply.LanguageId,
-            ImageBase = reply.ImageBase,
-            FunctionCount = (int)reply.FunctionCount,
-        };
+        return ToProgramInfo(reply);
     }
+
+    /// <summary>
+    /// Import a binary into a new persistent Ghidra project on disk, analyze it,
+    /// save it, and make it the current program. Reopen later with
+    /// <see cref="OpenProgramAsync"/> pointed at the project.
+    /// </summary>
+    /// <param name="binaryPath">The binary to import.</param>
+    /// <param name="projectLocation">An existing directory to create the project in.</param>
+    /// <param name="projectName">Project name; produces <c>&lt;location&gt;/&lt;name&gt;.gpr</c> + <c>.rep</c>.</param>
+    /// <param name="languageId">Optional language/compiler-spec id for headerless binaries.</param>
+    /// <param name="analyze">Run auto-analysis before saving.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="GhidraException">The binary is missing, the project exists, or import failed.</exception>
+    public async Task<ProgramInfo> CreateProjectAsync(
+        string binaryPath,
+        string projectLocation,
+        string projectName,
+        string languageId = "",
+        bool analyze = true,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(binaryPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectLocation);
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectName);
+        var reply = await _client.CreateProjectAsync(
+            new CreateProjectRequest
+            {
+                BinaryPath = binaryPath,
+                ProjectLocation = projectLocation,
+                ProjectName = projectName,
+                LanguageId = languageId,
+                Analyze = analyze,
+            },
+            cancellationToken: ct);
+
+        if (!reply.Success)
+        {
+            throw new GhidraException($"CreateProject failed: {reply.Error}");
+        }
+        return ToProgramInfo(reply);
+    }
+
+    /// <summary>
+    /// Persist the current program's changes to disk. The program must have been
+    /// opened writable and be backed by a project (e.g. from
+    /// <see cref="CreateProjectAsync"/> or an <see cref="OpenProgramAsync"/> with
+    /// <c>writable: true</c>); a transiently imported program cannot be saved.
+    /// </summary>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="GhidraException">No program is open, or it is not backed by a project.</exception>
+    public async Task SaveProgramAsync(CancellationToken ct = default)
+    {
+        var reply = await _client.SaveProgramAsync(new SaveProgramRequest(), cancellationToken: ct);
+        if (!reply.Success)
+        {
+            throw new GhidraException($"SaveProgram failed: {reply.Error}");
+        }
+    }
+
+    private static ProgramInfo ToProgramInfo(OpenProgramReply reply) => new()
+    {
+        Name = reply.ProgramName,
+        LanguageId = reply.LanguageId,
+        ImageBase = reply.ImageBase,
+        FunctionCount = (int)reply.FunctionCount,
+    };
 
     /// <summary>Decompile the function whose entry point is <paramref name="address"/> (hex, e.g. <c>0x21e0</c>).</summary>
     /// <param name="address">Entry-point address of the function.</param>

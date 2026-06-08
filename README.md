@@ -39,6 +39,8 @@ Working bridge. The surface grows one RPC at a time as consumers need it.
 * `ReadBytes` — raw program memory (feeds a pure-C# byte/table layer)
 * `GetInstructions` — the disassembly listing (mnemonic, operands, bytes)
 * `GetDataAt` / `ListDataTypes` / `ApplyDataType` — defined data and data types
+* `CreateProject` — import a binary into a new persistent project (`.gpr`/`.rep`), analyzed + saved
+* `SaveProgram` — persist edits (renames, applied types) to disk
 * `RunScript` — escape hatch: run any GhidraScript and capture its output
 
 Architecture-agnostic by construction — it just forwards a Ghidra language id, so
