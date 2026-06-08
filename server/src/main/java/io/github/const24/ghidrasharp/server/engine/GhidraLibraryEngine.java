@@ -3,6 +3,8 @@ package io.github.const24.ghidrasharp.server.engine;
 import ghidra.GhidraApplicationLayout;
 import ghidra.app.decompiler.DecompInterface;
 import ghidra.app.decompiler.DecompileResults;
+import ghidra.app.util.importer.ProgramLoader;
+import ghidra.app.util.opinion.LoadResults;
 import ghidra.base.project.GhidraProject;
 import ghidra.framework.Application;
 import ghidra.framework.HeadlessGhidraApplicationConfiguration;
@@ -93,7 +95,7 @@ public final class GhidraLibraryEngine implements GhidraEngine {
                 if (projectPath != null && !projectPath.isBlank()) {
                     openFromProject(projectPath, programPath, writable);
                 } else if (programPath != null && new File(programPath).isFile()) {
-                    importBinary(new File(programPath), analyze);
+                    importBinary(new File(programPath), languageId, analyze);
                 } else {
                     return OpenResult.failure(
                             "program_path is neither a file on disk nor accompanied by an existing project_path: " + programPath);
@@ -495,14 +497,28 @@ public final class GhidraLibraryEngine implements GhidraEngine {
         return project.openProgram(root.getPathname(), chosen.getName(), !writable /* readOnly */);
     }
 
-    private void importBinary(File file, boolean analyze) throws Exception {
-        project = GhidraProject.createProject(
-                System.getProperty("java.io.tmpdir"),
-                "ghidrasharp_scratch_" + System.nanoTime(),
-                true /* temporary */);
-        program = project.importProgram(file); // language auto-detected
+    private void importBinary(File file, String languageId, boolean analyze) throws Exception {
+        // Modern, non-deprecated import (GhidraProject.importProgram is forRemoval).
+        // The program is loaded into memory with this engine as its consumer and
+        // released in closeCurrent(); no scratch project is created.
+        ProgramLoader.Builder builder = ProgramLoader.builder().source(file);
+        if (languageId != null && !languageId.isBlank()) {
+            builder.language(languageId);
+        }
+        try (LoadResults<Program> results = builder.load()) {
+            program = results.getPrimaryDomainObject(this);
+        }
         if (analyze) {
-            GhidraProject.analyze(program);
+            // A freshly loaded (non-project) program needs an open transaction for
+            // the analyzers to write into it.
+            int tx = program.startTransaction("Analysis");
+            boolean ok = false;
+            try {
+                GhidraProject.analyze(program);
+                ok = true;
+            } finally {
+                program.endTransaction(tx, ok);
+            }
         }
     }
 
@@ -552,10 +568,13 @@ public final class GhidraLibraryEngine implements GhidraEngine {
             decomp = null;
         }
         if (project != null) {
-            project.close();
+            project.close();   // releases the project-opened program
             project = null;
+            program = null;
+        } else if (program != null) {
+            program.release(this);   // imported via ProgramLoader (this engine is the consumer)
+            program = null;
         }
-        program = null;
     }
 
     private static String describe(Throwable t) {

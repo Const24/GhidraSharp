@@ -42,9 +42,10 @@ def main(argv: list[str]) -> int:
     out = Path(argv[1])
     out.mkdir(parents=True, exist_ok=True)
 
+    # Current (non-deprecated) pyghidra API: start() -> open_project() ->
+    # program_context(). The deprecated open_program()/run_script() are avoided.
     import pyghidra
     pyghidra.start(verbose=False)
-    from ghidra.base.project import GhidraProject
     from ghidra.app.decompiler import DecompInterface
     from ghidra.util.task import TaskMonitor
 
@@ -54,7 +55,7 @@ def main(argv: list[str]) -> int:
         except OSError:
             pass
 
-    project = GhidraProject.openProject(project_dir, project_name, False)
+    project = pyghidra.open_project(project_dir, project_name)
     timings: dict[str, dict] = {}
 
     def timed(name, fn):
@@ -65,15 +66,19 @@ def main(argv: list[str]) -> int:
         print(f"[py] {name}: {count} in {ms} ms")
 
     try:
-        program = None
-        for df in project.getRootFolder().getFiles():
-            if df.getContentType() == "Program":
-                program = project.openProgram("/", df.getName(), True)
-                break
-        if program is None:
+        prog_path = next((df.getPathname() for df in project.getProjectData().getRootFolder().getFiles()
+                          if df.getContentType() == "Program"), None)
+        if prog_path is None:
             print("no Program in project", file=sys.stderr)
             return 3
 
+        with pyghidra.program_context(project, prog_path) as program:
+            return extract(program, out, timings, timed, DecompInterface, TaskMonitor)
+    finally:
+        project.close()
+
+
+def extract(program, out, timings, timed, DecompInterface, TaskMonitor) -> int:
         fm = program.getFunctionManager()
         listing = program.getListing()
         memory = program.getMemory()
@@ -170,9 +175,7 @@ def main(argv: list[str]) -> int:
 
         (out / "timings.json").write_text(json.dumps(timings, indent=2), encoding="utf-8")
         print(f"[parity/py] done -> {out}")
-    finally:
-        project.close()
-    return 0
+        return 0
 
 
 if __name__ == "__main__":
