@@ -26,8 +26,20 @@ fills that gap with a deliberately small, typed surface:
 
 ## Status
 
-Vertical slice in progress: `Ping` → `OpenProgram` → `DecompileFunction`. The
-bridged surface grows one RPC at a time as consumers need it.
+Working bridge. The surface grows one RPC at a time as consumers need it.
+
+* `Ping` — liveness + Ghidra version
+* `OpenProgram` — open an analyzed project, or import a binary
+* `DecompileFunction` / `DecompileFunctions` (batch, server-streamed) — function → C
+* `ListFunctions` — functions (+ callees), built to query client-side with LINQ
+* `GetReferencesTo` / `GetReferencesFrom` — cross-references (xrefs)
+
+The public C# API exposes only hand-written, documented result types
+(`ProgramInfo`, `GhidraFunction`, `Decompilation`, `GhidraReference`, …); the
+generated gRPC wire types are internal. Names follow Ghidra's own terms so they
+read right to a Ghidra user, with XML docs that also explain each concept to a
+.NET developer new to Ghidra. Validated byte-for-byte against pyghidra — see
+[bench/](bench/).
 
 ## Building the client
 

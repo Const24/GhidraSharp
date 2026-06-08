@@ -7,14 +7,15 @@ using ProtoSvc = Const24.GhidraSharp.Protocol.GhidraSharpService;
 namespace Const24.GhidraSharp;
 
 /// <summary>
-/// Typed C# entry point to a running <c>GhidraSharpServer</c> (Ghidra-as-library)
-/// over gRPC. Wraps the generated client so callers work with intent-named async
-/// methods and never touch the raw channel or the generated stub.
+/// Typed C# entry point to a running <c>GhidraSharpServer</c> (Ghidra running as a
+/// library) over gRPC. Methods are intent-named and return documented result
+/// records; the gRPC wire types never surface.
 /// </summary>
 /// <remarks>
 /// One <see cref="GhidraClient"/> owns one channel; create it once and reuse it.
 /// The server holds a single "current program" — call
-/// <see cref="OpenProgramAsync"/> before decompiling.
+/// <see cref="OpenProgramAsync"/> before decompiling or querying references.
+/// For driving a server you also start/stop yourself, see <see cref="GhidraServer"/>.
 /// </remarks>
 public sealed class GhidraClient : IAsyncDisposable, IDisposable
 {
@@ -28,6 +29,7 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
     }
 
     /// <summary>Connect to a server listening at <paramref name="address"/> (e.g. <c>http://127.0.0.1:50080</c>).</summary>
+    /// <param name="address">The server's HTTP/2 base address.</param>
     public static GhidraClient Connect(string address)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(address);
@@ -35,18 +37,30 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
     }
 
     /// <summary>Connect using an already-configured channel (custom credentials, handler, etc.).</summary>
+    /// <param name="channel">A configured gRPC channel pointing at the server.</param>
     public static GhidraClient FromChannel(GrpcChannel channel)
         => new(channel ?? throw new ArgumentNullException(nameof(channel)));
 
-    /// <summary>Liveness + handshake. Returns the Ghidra version the server is running.</summary>
-    public async Task<PingReply> PingAsync(string message = "", CancellationToken ct = default)
-        => await _client.PingAsync(new PingRequest { Message = message }, cancellationToken: ct);
+    /// <summary>Liveness check; returns the Ghidra version the server is running.</summary>
+    /// <param name="ct">Cancellation token.</param>
+    public async Task<ServerInfo> PingAsync(CancellationToken ct = default)
+    {
+        var reply = await _client.PingAsync(new PingRequest { Message = "ping" }, cancellationToken: ct);
+        return new ServerInfo { GhidraVersion = reply.GhidraVersion };
+    }
 
     /// <summary>
-    /// Open (importing + analyzing if needed) a program and make it the server's
-    /// current program for subsequent calls.
+    /// Open a program and make it the server's current program. Opens an existing
+    /// Ghidra project program when <paramref name="projectPath"/> is given,
+    /// otherwise imports the binary at <paramref name="programPath"/>.
     /// </summary>
-    public async Task<OpenProgramReply> OpenProgramAsync(
+    /// <param name="programPath">A binary file to import, or a program name inside the project.</param>
+    /// <param name="projectPath">A Ghidra project (<c>.gpr</c>/<c>.rep</c> or its folder); empty to import a binary into a scratch project.</param>
+    /// <param name="languageId">Language/compiler-spec id to use when importing a raw binary (ignored when opening an existing program).</param>
+    /// <param name="analyze">Run auto-analysis after importing a binary.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="GhidraException">The server could not open the program.</exception>
+    public async Task<ProgramInfo> OpenProgramAsync(
         string programPath,
         string projectPath = "",
         string languageId = "",
@@ -54,32 +68,70 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
         CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(programPath);
-        var request = new OpenProgramRequest
+        var reply = await _client.OpenProgramAsync(
+            new OpenProgramRequest
+            {
+                ProgramPath = programPath,
+                ProjectPath = projectPath,
+                LanguageId = languageId,
+                Analyze = analyze,
+            },
+            cancellationToken: ct);
+
+        if (!reply.Success)
         {
-            ProgramPath = programPath,
-            ProjectPath = projectPath,
-            LanguageId = languageId,
-            Analyze = analyze,
+            throw new GhidraException($"OpenProgram failed: {reply.Error}");
+        }
+
+        return new ProgramInfo
+        {
+            Name = reply.ProgramName,
+            LanguageId = reply.LanguageId,
+            ImageBase = reply.ImageBase,
+            FunctionCount = (int)reply.FunctionCount,
         };
-        return await _client.OpenProgramAsync(request, cancellationToken: ct);
     }
 
-    /// <summary>Decompile a function identified by entry <paramref name="address"/> (hex like <c>0x21e0</c>).</summary>
-    public Task<DecompileReply> DecompileAtAsync(string address, int timeoutSeconds = 0, CancellationToken ct = default)
+    /// <summary>Decompile the function whose entry point is <paramref name="address"/> (hex, e.g. <c>0x21e0</c>).</summary>
+    /// <param name="address">Entry-point address of the function.</param>
+    /// <param name="timeoutSeconds">Decompiler timeout; 0 uses the server default.</param>
+    /// <param name="ct">Cancellation token.</param>
+    public Task<Decompilation> DecompileAtAsync(string address, int timeoutSeconds = 0, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(address);
         return DecompileAsync(new DecompileRequest { Address = address, TimeoutSeconds = timeoutSeconds }, ct);
     }
 
-    /// <summary>Decompile a function identified by <paramref name="name"/>.</summary>
-    public Task<DecompileReply> DecompileByNameAsync(string name, int timeoutSeconds = 0, CancellationToken ct = default)
+    /// <summary>Decompile the function named <paramref name="name"/>.</summary>
+    /// <param name="name">Function name (e.g. <c>FUN_000021e0</c> or a user-applied name).</param>
+    /// <param name="timeoutSeconds">Decompiler timeout; 0 uses the server default.</param>
+    /// <param name="ct">Cancellation token.</param>
+    public Task<Decompilation> DecompileByNameAsync(string name, int timeoutSeconds = 0, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         return DecompileAsync(new DecompileRequest { Name = name, TimeoutSeconds = timeoutSeconds }, ct);
     }
 
-    private async Task<DecompileReply> DecompileAsync(DecompileRequest request, CancellationToken ct)
-        => await _client.DecompileFunctionAsync(request, cancellationToken: ct);
+    private async Task<Decompilation> DecompileAsync(DecompileRequest request, CancellationToken ct)
+        => ToDecompilation(await _client.DecompileFunctionAsync(request, cancellationToken: ct));
+
+    /// <summary>
+    /// List the functions in the current program. The result is a plain list,
+    /// ready to query with LINQ (e.g. <c>funcs.Where(f =&gt; f.Calls.Contains("..."))</c>).
+    /// </summary>
+    /// <param name="includeCalls">Populate each function's <see cref="GhidraFunction.Calls"/> (its callees); costs an extra pass server-side.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="GhidraException">No program is open.</exception>
+    public async Task<IReadOnlyList<GhidraFunction>> ListFunctionsAsync(bool includeCalls = false, CancellationToken ct = default)
+    {
+        var reply = await _client.ListFunctionsAsync(
+            new ListFunctionsRequest { IncludeCalls = includeCalls }, cancellationToken: ct);
+        if (!reply.Success)
+        {
+            throw new GhidraException($"ListFunctions failed: {reply.Error}");
+        }
+        return reply.Functions.Select(ToFunction).ToList();
+    }
 
     /// <summary>
     /// Batch decompile, streamed: one round trip, results arrive as they are
@@ -90,7 +142,7 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
     /// <param name="all">Decompile every function in the program.</param>
     /// <param name="timeoutSeconds">Per-function decompiler timeout (0 = server default).</param>
     /// <param name="ct">Cancellation token.</param>
-    public async IAsyncEnumerable<DecompileReply> DecompileManyAsync(
+    public async IAsyncEnumerable<Decompilation> DecompileManyAsync(
         IEnumerable<string>? addresses = null,
         bool all = false,
         int timeoutSeconds = 0,
@@ -105,28 +157,74 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
         using var call = _client.DecompileFunctions(request, cancellationToken: ct);
         await foreach (var reply in call.ResponseStream.ReadAllAsync(ct))
         {
-            yield return reply;
+            yield return ToDecompilation(reply);
         }
     }
 
     /// <summary>
-    /// List the functions in the current program. The result is a plain list,
-    /// ready to query with LINQ (e.g. <c>funcs.Where(f =&gt; f.Calls.Contains("..."))</c>).
+    /// References (xrefs) whose target is <paramref name="address"/> — "who points
+    /// here" (callers, jumps into, data reads of that address).
     /// </summary>
-    /// <param name="includeCalls">
-    /// Populate each function's <c>Calls</c> (its callees). Costs an extra pass
-    /// over the call graph server-side.
-    /// </param>
+    /// <param name="address">The target address (hex).</param>
     /// <param name="ct">Cancellation token.</param>
-    public async Task<IReadOnlyList<FunctionInfo>> ListFunctionsAsync(bool includeCalls = false, CancellationToken ct = default)
+    /// <exception cref="GhidraException">No program is open, or the address is invalid.</exception>
+    public async Task<IReadOnlyList<GhidraReference>> GetReferencesToAsync(string address, CancellationToken ct = default)
     {
-        var reply = await _client.ListFunctionsAsync(
-            new ListFunctionsRequest { IncludeCalls = includeCalls }, cancellationToken: ct);
+        ArgumentException.ThrowIfNullOrWhiteSpace(address);
+        var reply = await _client.GetReferencesToAsync(new ReferencesRequest { Address = address }, cancellationToken: ct);
+        return ToReferences(reply);
+    }
+
+    /// <summary>
+    /// References (xrefs) originating from <paramref name="address"/> — "what this
+    /// points to" (the calls, jumps and data accesses made at that address).
+    /// </summary>
+    /// <param name="address">The source address (hex).</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="GhidraException">No program is open, or the address is invalid.</exception>
+    public async Task<IReadOnlyList<GhidraReference>> GetReferencesFromAsync(string address, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(address);
+        var reply = await _client.GetReferencesFromAsync(new ReferencesRequest { Address = address }, cancellationToken: ct);
+        return ToReferences(reply);
+    }
+
+    private static GhidraFunction ToFunction(FunctionInfo f) => new()
+    {
+        Name = f.Name,
+        EntryPoint = f.EntryAddress,
+        Size = f.Size,
+        ParameterCount = f.ParameterCount,
+        IsThunk = f.IsThunk,
+        Calls = f.Calls.ToList(),
+    };
+
+    private static Decompilation ToDecompilation(DecompileReply r) => new()
+    {
+        IsSuccess = r.Success,
+        EntryPoint = r.EntryAddress,
+        Signature = r.Signature,
+        CCode = r.CCode,
+        Error = r.Error,
+    };
+
+    private static IReadOnlyList<GhidraReference> ToReferences(ReferencesReply reply)
+    {
         if (!reply.Success)
         {
-            throw new InvalidOperationException($"ListFunctions failed: {reply.Error}");
+            throw new GhidraException($"GetReferences failed: {reply.Error}");
         }
-        return reply.Functions;
+        return reply.References.Select(r => new GhidraReference
+        {
+            FromAddress = r.FromAddress,
+            ToAddress = r.ToAddress,
+            ReferenceType = r.ReferenceType,
+            IsCall = r.IsCall,
+            IsJump = r.IsJump,
+            IsData = r.IsData,
+            OperandIndex = r.OperandIndex,
+            IsPrimary = r.IsPrimary,
+        }).ToList();
     }
 
     /// <inheritdoc/>

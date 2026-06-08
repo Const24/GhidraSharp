@@ -11,6 +11,9 @@ import ghidra.framework.model.DomainFolder;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.Function;
 import ghidra.program.model.listing.Program;
+import ghidra.program.model.symbol.Reference;
+import ghidra.program.model.symbol.ReferenceManager;
+import ghidra.program.model.symbol.RefType;
 import ghidra.util.task.TaskMonitor;
 
 import java.io.File;
@@ -201,6 +204,50 @@ public final class GhidraLibraryEngine implements GhidraEngine {
             }
         } catch (Exception e) {
             return ListResult.failure(describe(e));
+        }
+    }
+
+    @Override
+    public ReferencesResult referencesTo(String address) {
+        return references(address, true);
+    }
+
+    @Override
+    public ReferencesResult referencesFrom(String address) {
+        return references(address, false);
+    }
+
+    private ReferencesResult references(String address, boolean to) {
+        try {
+            synchronized (lock) {
+                if (program == null) {
+                    return ReferencesResult.failure("no program open; call OpenProgram first");
+                }
+                Address addr = parseAddress(address);
+                if (addr == null) {
+                    return ReferencesResult.failure("bad address: " + address);
+                }
+                ReferenceManager refs = program.getReferenceManager();
+                List<ReferenceSummary> out = new ArrayList<>();
+                Iterable<Reference> found = to
+                        ? refs.getReferencesTo(addr)
+                        : java.util.Arrays.asList(refs.getReferencesFrom(addr));
+                for (Reference ref : found) {
+                    RefType type = ref.getReferenceType();
+                    out.add(new ReferenceSummary(
+                            ref.getFromAddress().toString(),
+                            ref.getToAddress().toString(),
+                            type.getName(),
+                            type.isCall(),
+                            type.isJump(),
+                            type.isData(),
+                            ref.getOperandIndex(),
+                            ref.isPrimary()));
+                }
+                return new ReferencesResult(true, out, "");
+            }
+        } catch (Exception e) {
+            return ReferencesResult.failure(describe(e));
         }
     }
 

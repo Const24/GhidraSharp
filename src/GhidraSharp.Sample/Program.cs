@@ -6,6 +6,7 @@ using Const24.GhidraSharp;
 //                      [--rom <path-or-domainfile>] [--project <gpr>] [--lang <id>]
 //                      [--addr 0x21e0 | --name FUN_000021e0]
 //                      [--list [--calls FUN_xxxx]]
+//                      [--xrefs 0x30d1c]
 //                      [--decompile-all [--dump <file>]]
 //
 // --spawn starts (and stops) its own Java server; otherwise it connects to one
@@ -44,8 +45,8 @@ static async Task<int> Run(GhidraClient ghidra, Dictionary<string, string> opts,
 {
     try
     {
-        var pong = await ghidra.PingAsync("hello from C#");
-        Console.WriteLine($"[ping] server up, Ghidra {pong.GhidraVersion}: \"{pong.Message}\"");
+        var info = await ghidra.PingAsync();
+        Console.WriteLine($"[ping] server up, Ghidra {info.GhidraVersion}");
     }
     catch (Exception ex)
     {
@@ -58,19 +59,22 @@ static async Task<int> Run(GhidraClient ghidra, Dictionary<string, string> opts,
         return 0;
     }
 
-    var open = await ghidra.OpenProgramAsync(
-        rom,
-        projectPath: opts.GetValueOrDefault("project", ""),
-        languageId: opts.GetValueOrDefault("lang", ""));
-
-    if (!open.Success)
+    ProgramInfo program;
+    try
     {
-        Console.Error.WriteLine($"[open] failed: {open.Error}");
+        program = await ghidra.OpenProgramAsync(
+            rom,
+            projectPath: opts.GetValueOrDefault("project", ""),
+            languageId: opts.GetValueOrDefault("lang", ""));
+    }
+    catch (GhidraException ex)
+    {
+        Console.Error.WriteLine($"[open] {ex.Message}");
         return 2;
     }
 
     Console.WriteLine(
-        $"[open] {open.ProgramName} ({open.LanguageId}) base=0x{open.ImageBase:x} functions={open.FunctionCount}");
+        $"[open] {program.Name} ({program.LanguageId}) base=0x{program.ImageBase:x} functions={program.FunctionCount}");
 
     var addr = opts.GetValueOrDefault("addr", "");
     var name = opts.GetValueOrDefault("name", "");
@@ -80,13 +84,13 @@ static async Task<int> Run(GhidraClient ghidra, Dictionary<string, string> opts,
             ? await ghidra.DecompileAtAsync(addr)
             : await ghidra.DecompileByNameAsync(name);
 
-        if (!dec.Success)
+        if (!dec.IsSuccess)
         {
             Console.Error.WriteLine($"[decompile] failed: {dec.Error}");
             return 3;
         }
 
-        Console.WriteLine($"[decompile] {dec.Signature}  @ {dec.EntryAddress}");
+        Console.WriteLine($"[decompile] {dec.Signature}  @ {dec.EntryPoint}");
         Console.WriteLine(dec.CCode);
     }
 
@@ -99,7 +103,7 @@ static async Task<int> Run(GhidraClient ghidra, Dictionary<string, string> opts,
         Console.WriteLine("[linq] 5 largest functions:");
         foreach (var f in funcs.OrderByDescending(f => f.Size).Take(5))
         {
-            Console.WriteLine($"  {f.EntryAddress}  {f.Size,6}b  {f.ParameterCount}p  {f.Name}");
+            Console.WriteLine($"  {f.EntryPoint}  {f.Size,6}b  {f.ParameterCount}p  {f.Name}");
         }
 
         var hubs = funcs.Count(f => f.Calls.Count >= 10);
@@ -109,8 +113,21 @@ static async Task<int> Run(GhidraClient ghidra, Dictionary<string, string> opts,
         {
             var callers = funcs.Where(f => f.Calls.Contains(callee)).OrderBy(f => f.Name).ToList();
             Console.WriteLine($"[linq] {callers.Count} functions call \"{callee}\":");
-            foreach (var f in callers.Take(10)) Console.WriteLine($"  {f.EntryAddress}  {f.Name}");
+            foreach (var f in callers.Take(10)) Console.WriteLine($"  {f.EntryPoint}  {f.Name}");
         }
+    }
+
+    if (opts.TryGetValue("xrefs", out var xrefAddr))
+    {
+        var to = await ghidra.GetReferencesToAsync(xrefAddr);
+        Console.WriteLine($"[xrefs] {to.Count} references TO {xrefAddr}");
+        foreach (var g in to.GroupBy(r => r.ReferenceType).OrderByDescending(g => g.Count()))
+        {
+            Console.WriteLine($"  {g.Count(),4}x {g.Key}");
+        }
+
+        var callSites = to.Where(r => r.IsCall).Select(r => r.FromAddress).ToList();
+        Console.WriteLine($"[xrefs] called from {callSites.Count} sites: {string.Join(", ", callSites.Take(8))}");
     }
 
     if (opts.ContainsKey("decompile-all"))
@@ -122,10 +139,10 @@ static async Task<int> Run(GhidraClient ghidra, Dictionary<string, string> opts,
         int ok = 0, fail = 0;
         await foreach (var r in ghidra.DecompileManyAsync(all: true))
         {
-            if (r.Success)
+            if (r.IsSuccess)
             {
                 ok++;
-                dump?.Write($">>> {r.EntryAddress}\n{r.CCode}");
+                dump?.Write($">>> {r.EntryPoint}\n{r.CCode}");
             }
             else
             {

@@ -36,6 +36,12 @@ service GhidraSharpService {
   // queried client-side (LINQ), so it carries enough per-function detail to
   // filter on without a round trip per function.
   rpc ListFunctions(ListFunctionsRequest) returns (ListFunctionsReply);
+
+  // References (xrefs) whose TO-address is the given address: "who points here".
+  rpc GetReferencesTo(ReferencesRequest) returns (ReferencesReply);
+
+  // References (xrefs) originating FROM the given address: "what this points to".
+  rpc GetReferencesFrom(ReferencesRequest) returns (ReferencesReply);
 }
 
 message PingRequest {
@@ -123,5 +129,26 @@ message FunctionInfo {
 message ListFunctionsReply {
   bool success = 1;
   repeated FunctionInfo functions = 2;
+  string error = 3;
+}
+
+message ReferencesRequest {
+  string address = 1;  // hex, e.g. "0x21e0"
+}
+
+message Reference {
+  string from_address = 1;
+  string to_address = 2;
+  string reference_type = 3;  // Ghidra RefType name, e.g. "UNCONDITIONAL_CALL", "READ", "DATA"
+  bool is_call = 4;
+  bool is_jump = 5;
+  bool is_data = 6;
+  int32 operand_index = 7;    // operand the ref is on; -1 = mnemonic-level (CodeUnit.MNEMONIC)
+  bool is_primary = 8;        // the primary reference from that from-address/operand
+}
+
+message ReferencesReply {
+  bool success = 1;
+  repeated Reference references = 2;
   string error = 3;
 }

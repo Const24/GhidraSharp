@@ -34,6 +34,12 @@ public interface GhidraEngine {
     /** List the functions in the current program (optionally with each one's callees). */
     ListResult listFunctions(boolean includeCalls);
 
+    /** References (xrefs) whose target is {@code address} ("who points here"). */
+    ReferencesResult referencesTo(String address);
+
+    /** References (xrefs) originating from {@code address} ("what this points to"). */
+    ReferencesResult referencesFrom(String address);
+
     /** Result of opening a program. */
     record OpenResult(
             boolean success,
@@ -76,6 +82,26 @@ public interface GhidraEngine {
 
         public static ListResult failure(String error) {
             return new ListResult(false, List.of(), error);
+        }
+    }
+
+    /** One cross-reference (xref). */
+    record ReferenceSummary(
+            String fromAddress,
+            String toAddress,
+            String referenceType,
+            boolean call,
+            boolean jump,
+            boolean data,
+            int operandIndex,
+            boolean primary) {
+    }
+
+    /** Result of a references query. */
+    record ReferencesResult(boolean success, List<ReferenceSummary> references, String error) {
+
+        public static ReferencesResult failure(String error) {
+            return new ReferencesResult(false, List.of(), error);
         }
     }
 }

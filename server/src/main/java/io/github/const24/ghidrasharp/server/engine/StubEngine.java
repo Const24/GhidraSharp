@@ -36,4 +36,14 @@ public final class StubEngine implements GhidraEngine {
                               java.util.function.Consumer<DecompileResult> sink) {
         sink.accept(DecompileResult.failure("DecompileFunctions not implemented yet (StubEngine)"));
     }
+
+    @Override
+    public ReferencesResult referencesTo(String address) {
+        return ReferencesResult.failure("GetReferencesTo not implemented yet (StubEngine)");
+    }
+
+    @Override
+    public ReferencesResult referencesFrom(String address) {
+        return ReferencesResult.failure("GetReferencesFrom not implemented yet (StubEngine)");
+    }
 }

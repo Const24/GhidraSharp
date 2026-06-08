@@ -11,6 +11,9 @@ import io.github.const24.ghidrasharp.proto.OpenProgramReply;
 import io.github.const24.ghidrasharp.proto.OpenProgramRequest;
 import io.github.const24.ghidrasharp.proto.PingReply;
 import io.github.const24.ghidrasharp.proto.PingRequest;
+import io.github.const24.ghidrasharp.proto.Reference;
+import io.github.const24.ghidrasharp.proto.ReferencesReply;
+import io.github.const24.ghidrasharp.proto.ReferencesRequest;
 import io.github.const24.ghidrasharp.server.engine.GhidraEngine;
 import io.grpc.stub.StreamObserver;
 
@@ -105,6 +108,38 @@ public final class GhidraSharpServiceImpl extends GhidraSharpServiceGrpc.GhidraS
 
         responseObserver.onNext(reply.build());
         responseObserver.onCompleted();
+    }
+
+    @Override
+    public void getReferencesTo(ReferencesRequest request, StreamObserver<ReferencesReply> responseObserver) {
+        respondReferences(engine.referencesTo(request.getAddress()), responseObserver);
+    }
+
+    @Override
+    public void getReferencesFrom(ReferencesRequest request, StreamObserver<ReferencesReply> responseObserver) {
+        respondReferences(engine.referencesFrom(request.getAddress()), responseObserver);
+    }
+
+    private static void respondReferences(GhidraEngine.ReferencesResult r, StreamObserver<ReferencesReply> observer) {
+        ReferencesReply.Builder reply = ReferencesReply.newBuilder()
+                .setSuccess(r.success())
+                .setError(nullToEmpty(r.error()));
+
+        for (GhidraEngine.ReferenceSummary ref : r.references()) {
+            reply.addReferences(Reference.newBuilder()
+                    .setFromAddress(nullToEmpty(ref.fromAddress()))
+                    .setToAddress(nullToEmpty(ref.toAddress()))
+                    .setReferenceType(nullToEmpty(ref.referenceType()))
+                    .setIsCall(ref.call())
+                    .setIsJump(ref.jump())
+                    .setIsData(ref.data())
+                    .setOperandIndex(ref.operandIndex())
+                    .setIsPrimary(ref.primary())
+                    .build());
+        }
+
+        observer.onNext(reply.build());
+        observer.onCompleted();
     }
 
     private static String nullToEmpty(String s) {

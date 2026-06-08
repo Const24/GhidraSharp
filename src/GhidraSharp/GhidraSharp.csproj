@@ -31,9 +31,11 @@
     <PackageReference Include="Grpc.Tools" Version="2.81.0" PrivateAssets="All" />
   </ItemGroup>
 
-  <!-- Single source of truth: generate the client stubs from the shared proto. -->
+  <!-- Single source of truth: generate the client stubs from the shared proto.
+       Access=Internal keeps the generated wire types out of the public API; only
+       the hand-written, documented result records in Model.cs surface. -->
   <ItemGroup>
-    <Protobuf Include="..\..\proto\ghidrasharp.proto" GrpcServices="Client" Link="proto\ghidrasharp.proto" />
+    <Protobuf Include="..\..\proto\ghidrasharp.proto" GrpcServices="Client" Access="Internal" Link="proto\ghidrasharp.proto" />
   </ItemGroup>
 
   <ItemGroup>
