@@ -9,9 +9,11 @@ namespace Const24.GhidraSharp;
 public sealed class GhidraServerOptions
 {
     /// <summary>
-    /// Path to an unzipped server distribution — the folder that holds <c>lib/</c> and the
-    /// launcher scripts, i.e. <c>ghidrasharp-server-&lt;version&gt;</c> downloaded from the
-    /// GitHub Releases. Set this <b>or</b> <see cref="ArgFile"/>.
+    /// Path to an unzipped server distribution (the folder holding <c>lib/</c>). Leave
+    /// <c>null</c> to auto-detect: a <c>ghidrasharp-server</c> folder next to the app
+    /// (shipped by the <c>Const24.GhidraSharp.Server</c> package), else the
+    /// <c>GHIDRASHARP_SERVER_DIR</c> environment variable. Set explicitly only to override,
+    /// or use <see cref="ArgFile"/> for a source build.
     /// </summary>
     public string? ServerDirectory { get; init; }
 
@@ -184,9 +186,10 @@ public sealed class GhidraServer : IAsyncDisposable, IDisposable
 
     private static List<string> BuildLaunchArgs(GhidraServerOptions options)
     {
-        if (!string.IsNullOrWhiteSpace(options.ServerDirectory))
+        var serverDir = ResolveServerDirectory(options);
+        if (serverDir is not null)
         {
-            return BuildClasspathArgs(options);
+            return BuildClasspathArgs(serverDir, options);
         }
         if (!string.IsNullOrWhiteSpace(options.ArgFile))
         {
@@ -199,14 +202,33 @@ public sealed class GhidraServer : IAsyncDisposable, IDisposable
             return ["@" + argFile];
         }
         throw new InvalidOperationException(
-            "No server to launch. Set GhidraServerOptions.ServerDirectory to an unzipped " +
-            "ghidrasharp-server-<version> (download it from " +
-            "https://github.com/Const24/GhidraSharp/releases), or set ArgFile when building from source.");
+            "No GhidraSharpServer found. Install the Const24.GhidraSharp.Server package (it ships one next " +
+            "to your app), or download ghidrasharp-server from https://github.com/Const24/GhidraSharp/releases " +
+            "and set GhidraServerOptions.ServerDirectory, or set ArgFile when building from source.");
     }
 
-    private static List<string> BuildClasspathArgs(GhidraServerOptions options)
+    // Resolve the server distribution: explicit ServerDirectory, else GHIDRASHARP_SERVER_DIR,
+    // else a 'ghidrasharp-server' folder next to the app (dropped by Const24.GhidraSharp.Server).
+    internal static string? ResolveServerDirectory(GhidraServerOptions options)
     {
-        var dir = Path.GetFullPath(options.ServerDirectory!);
+        if (!string.IsNullOrWhiteSpace(options.ServerDirectory))
+        {
+            return Path.GetFullPath(options.ServerDirectory);
+        }
+        var env = Environment.GetEnvironmentVariable("GHIDRASHARP_SERVER_DIR");
+        if (!string.IsNullOrWhiteSpace(env) && IsServerDirectory(env))
+        {
+            return Path.GetFullPath(env);
+        }
+        var beside = Path.Combine(AppContext.BaseDirectory, "ghidrasharp-server");
+        return IsServerDirectory(beside) ? beside : null;
+    }
+
+    private static bool IsServerDirectory(string dir) => Directory.Exists(Path.Combine(dir, "lib"));
+
+    private static List<string> BuildClasspathArgs(string serverDir, GhidraServerOptions options)
+    {
+        var dir = Path.GetFullPath(serverDir);
         var libDir = Path.Combine(dir, "lib");
         if (!Directory.Exists(libDir))
         {

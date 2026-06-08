@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/GhidraSharp/GhidraSharp.csproj" />
     <Project Path="src/GhidraSharp.Sample/GhidraSharp.Sample.csproj" />
+    <Project Path="src/GhidraSharp.Server/GhidraSharp.Server.csproj" />
   </Folder>
   <Folder Name="/bench/">
     <Project Path="bench/GhidraSharp.Parity/GhidraSharp.Parity.csproj" />

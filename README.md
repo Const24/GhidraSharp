@@ -36,14 +36,22 @@ fills that gap with a deliberately small, typed surface:
 
 ## Install
 
+**Batteries-included** — client + server, with the server bundled into your app's
+output (ships with `dotnet publish`, found automatically at run time):
+
+```sh
+dotnet add package Const24.GhidraSharp.Server
+```
+
+**Client only** — if you connect to a `GhidraSharpServer` you run yourself
+(see [Running the server](#running-the-server)):
+
 ```sh
 dotnet add package Const24.GhidraSharp
 ```
 
-That gets you the C# client. You also need the **GhidraSharpServer** it talks to —
-download `ghidrasharp-server-<version>.zip` from
-[Releases](https://github.com/Const24/GhidraSharp/releases) (see
-[Running the server](#running-the-server)).
+Either way the machine that runs the server needs **JDK 21+** and a **Ghidra**
+install (`GHIDRA_INSTALL_DIR`) — those aren't shipped.
 
 ## Quickstart
 
@@ -82,15 +90,13 @@ sure which? `ListLanguagesAsync()` enumerates every one Ghidra supports (filter
 like `ListLanguagesAsync("SuperH")`). Already have an analyzed Ghidra project?
 Open it with `OpenProgramAsync(...)`.
 
-Prefer the client to own the process? Point `GhidraServer.StartAsync` at the
-unzipped server and it spawns + owns it for you (stopped on dispose):
+Prefer the client to own the process? With the `Const24.GhidraSharp.Server` package
+the server is bundled next to your app, so `GhidraServer.StartAsync()` finds it,
+spawns it, and stops it on dispose — no paths:
 
 ```csharp
-await using var server = await GhidraServer.StartAsync(new GhidraServerOptions
-{
-    ServerDirectory  = @"C:\Ghidra\ghidrasharp-server-0.1.1",
-    GhidraInstallDir = @"C:\Ghidra\ghidra_12.1_PUBLIC",
-});
+// with GHIDRA_INSTALL_DIR set (or pass GhidraInstallDir in the options)
+await using var server = await GhidraServer.StartAsync();
 var ghidra = server.Client;
 ```
 

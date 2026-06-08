@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    A "batteries-included" package: it carries the Java GhidraSharpServer distribution
+    and an MSBuild target that drops it next to the consumer's app (so it ships with
+    `dotnet publish` and GhidraServer.StartAsync() auto-detects it). It depends on the
+    client, so `dotnet add package Const24.GhidraSharp.Server` brings both. No managed
+    assembly of its own.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>false</SuppressDependenciesWhenPacking>
+    <!-- NU5128: content/build package, no lib for the TFM is intentional.
+         NU5110/NU5111: the bundled .ps1 is a launcher, not a NuGet install script;
+         it must NOT auto-run on install (which is exactly what these warn about). -->
+    <NoWarn>$(NoWarn);NU5128;NU5110;NU5111</NoWarn>
+
+    <PackageId>Const24.GhidraSharp.Server</PackageId>
+    <Version>0.3.0</Version>
+    <Authors>Const24</Authors>
+    <Description>The GhidraSharpServer (Ghidra-as-a-library gRPC server) for Const24.GhidraSharp. Drops the server next to your app at build time so GhidraServer.StartAsync() finds it — ships with your publish output, no runtime download. Pulls in the Const24.GhidraSharp client. Requires JDK 21+ and a Ghidra 12.1+ install (GHIDRA_INSTALL_DIR).</Description>
+    <PackageProjectUrl>https://github.com/Const24/GhidraSharp</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Const24/GhidraSharp</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>ghidra;reverse-engineering;decompiler;grpc;server</PackageTags>
+    <Copyright>Copyright (c) 2026 Const24</Copyright>
+
+    <!-- The server distribution produced by `gradlew installDist` (run before packing). -->
+    <GhidraServerDistDir>$(MSBuildThisFileDirectory)..\..\server\build\install\ghidrasharp-server</GhidraServerDistDir>
+  </PropertyGroup>
+
+  <!-- Depend on the client so installing this package brings both. -->
+  <ItemGroup>
+    <ProjectReference Include="..\GhidraSharp\GhidraSharp.csproj" />
+  </ItemGroup>
+
+  <!-- Pack the server payload, the consumer-side build target, and the readme. -->
+  <ItemGroup>
+    <None Include="$(GhidraServerDistDir)\**\*" Pack="true" PackagePath="ghidrasharp-server\" />
+    <None Include="build\Const24.GhidraSharp.Server.targets" Pack="true" PackagePath="build\" />
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>
