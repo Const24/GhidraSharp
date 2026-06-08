@@ -92,6 +92,10 @@ service GhidraSharpService {
 
   // One instruction in full: structured operands + raw PCode.
   rpc GetInstructionDetail(InstructionDetailRequest) returns (InstructionDetailReply);
+
+  // List the processor languages Ghidra supports (its language picker), optionally
+  // filtered. Use a returned id as language_id when importing a raw binary.
+  rpc ListLanguages(ListLanguagesRequest) returns (ListLanguagesReply);
 }
 
 message PingRequest {
@@ -465,5 +469,24 @@ message InstructionDetail {
 message InstructionDetailReply {
   bool success = 1;
   InstructionDetail instruction = 2;
+  string error = 3;
+}
+
+message ListLanguagesRequest {
+  string name_contains = 1;  // optional case-insensitive filter over id/processor/description
+}
+
+message LanguageDescriptor {
+  string id = 1;           // language/compiler-spec id, e.g. "SuperH:BE:32:SH-2A"
+  string processor = 2;    // e.g. "SuperH"
+  string endian = 3;       // "big" | "little"
+  int32 size = 4;          // address size in bits, e.g. 16/32/64
+  string variant = 5;      // e.g. "SH-2A"
+  string description = 6;
+}
+
+message ListLanguagesReply {
+  bool success = 1;
+  repeated LanguageDescriptor languages = 2;
   string error = 3;
 }

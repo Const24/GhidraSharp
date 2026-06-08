@@ -167,4 +167,13 @@ public sealed class EngineIntegrationTests(IntegrationFixture fixture) : IClassF
         var symbols = await Client.GetSymbolsAtAsync(entry);
         Assert.Contains(symbols, s => s.Name == "IntegrationRenamed");
     }
+
+    [SkippableFact]
+    public async Task ListLanguages_returns_the_processor_catalog()
+    {
+        Skip.IfNot(fixture.Available, fixture.SkipReason);
+        var langs = await Client.ListLanguagesAsync();
+        Assert.NotEmpty(langs);
+        Assert.Contains(langs, l => l.Id == "x86:LE:64:default"); // always present in Ghidra
+    }
 }

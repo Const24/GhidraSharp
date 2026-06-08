@@ -14,7 +14,10 @@ import ghidra.app.util.opinion.LoadResults;
 import ghidra.base.project.GhidraProject;
 import ghidra.program.model.data.DataType;
 import ghidra.program.model.data.DataTypeManager;
+import ghidra.program.model.lang.LanguageDescription;
+import ghidra.program.model.lang.LanguageService;
 import ghidra.program.model.lang.OperandType;
+import ghidra.program.util.DefaultLanguageService;
 import ghidra.program.model.listing.Bookmark;
 import ghidra.program.model.listing.BookmarkManager;
 import ghidra.program.model.listing.CommentType;
@@ -910,6 +913,35 @@ public final class GhidraLibraryEngine implements GhidraEngine {
             }
         } catch (Exception e) {
             return DataTypesResult.failure(describe(e));
+        }
+    }
+
+    @Override
+    public LanguagesResult listLanguages(String nameContains) {
+        try {
+            synchronized (lock) {
+                ensureInitialized(); // language definitions come from the Ghidra app, not a program
+                String filter = (nameContains == null) ? "" : nameContains.toLowerCase();
+                List<LanguageInfo> out = new ArrayList<>();
+                LanguageService ls = DefaultLanguageService.getLanguageService();
+                for (LanguageDescription ld : ls.getLanguageDescriptions(false)) {
+                    String id = ld.getLanguageID().getIdAsString();
+                    String processor = ld.getProcessor().toString();
+                    String endian = ld.getEndian().toString();
+                    String variant = ld.getVariant();
+                    String description = (ld.getDescription() == null) ? "" : ld.getDescription();
+                    if (!filter.isEmpty()
+                            && !id.toLowerCase().contains(filter)
+                            && !processor.toLowerCase().contains(filter)
+                            && !description.toLowerCase().contains(filter)) {
+                        continue;
+                    }
+                    out.add(new LanguageInfo(id, processor, endian, ld.getSize(), variant, description));
+                }
+                return new LanguagesResult(true, out, "");
+            }
+        } catch (Exception e) {
+            return LanguagesResult.failure(describe(e));
         }
     }
 

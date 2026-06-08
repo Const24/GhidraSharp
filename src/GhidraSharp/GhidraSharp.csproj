@@ -14,7 +14,7 @@
   <!-- NuGet packaging -->
   <PropertyGroup>
     <PackageId>Const24.GhidraSharp</PackageId>
-    <Version>0.1.1</Version>
+    <Version>0.2.0</Version>
     <Authors>Const24</Authors>
     <Description>A typed C# client for Ghidra over a gRPC bridge (GhidraSharp). The Java GhidraSharpServer runs Ghidra as a library and serves decompilation/analysis to .NET — no Python in the chain. Requires the GhidraSharpServer, downloadable from the GitHub Releases.</Description>
     <PackageProjectUrl>https://github.com/Const24/GhidraSharp</PackageProjectUrl>

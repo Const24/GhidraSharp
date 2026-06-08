@@ -240,6 +240,20 @@ internal sealed class HappyFake : ProtoSvc.GhidraSharpServiceBase
 
     public override Task<ReadBytesReply> ReadBytes(ReadBytesRequest request, ServerCallContext context) =>
         Task.FromResult(new ReadBytesReply { Success = true, Data = ByteString.CopyFrom(0xDE, 0xAD), Address = "00001000" });
+
+    public override Task<ListLanguagesReply> ListLanguages(ListLanguagesRequest request, ServerCallContext context) =>
+        Task.FromResult(new ListLanguagesReply
+        {
+            Success = true,
+            Languages =
+            {
+                new LanguageDescriptor
+                {
+                    Id = "SuperH:BE:32:SH-2A", Processor = "SuperH", Endian = "big",
+                    Size = 32, Variant = "SH-2A", Description = "SuperH SH-2A",
+                },
+            },
+        });
 }
 
 /// <summary>Echoes the comment type the client sent (as the error), to verify the

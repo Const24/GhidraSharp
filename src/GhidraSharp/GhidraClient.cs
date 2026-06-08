@@ -61,6 +61,40 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
         return new ServerInfo { GhidraVersion = reply.GhidraVersion };
     }
 
+    /// <summary>List the processor languages Ghidra supports — its language picker. Use a returned
+    /// <see cref="GhidraLanguage.Id"/> as the languageId when importing a raw (headerless) binary.</summary>
+    /// <param name="nameContains">Optional case-insensitive filter over id / processor / description.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="GhidraException">The server reported a failure.</exception>
+    public async Task<IReadOnlyList<GhidraLanguage>> ListLanguagesAsync(string nameContains = "", CancellationToken ct = default)
+    {
+        var reply = await _client.ListLanguagesAsync(
+            new ListLanguagesRequest { NameContains = nameContains ?? "" }, cancellationToken: ct);
+        if (!reply.Success)
+        {
+            throw new GhidraException($"ListLanguages failed: {reply.Error}");
+        }
+        return ToLanguages(reply);
+    }
+
+    private static List<GhidraLanguage> ToLanguages(ListLanguagesReply reply)
+    {
+        var list = new List<GhidraLanguage>(reply.Languages.Count);
+        foreach (var l in reply.Languages)
+        {
+            list.Add(new GhidraLanguage
+            {
+                Id = l.Id,
+                Processor = l.Processor,
+                Endian = l.Endian,
+                Size = l.Size,
+                Variant = l.Variant,
+                Description = l.Description,
+            });
+        }
+        return list;
+    }
+
     /// <summary>
     /// Open a program and make it the server's current program. Opens an existing
     /// Ghidra project program when <paramref name="projectPath"/> is given,

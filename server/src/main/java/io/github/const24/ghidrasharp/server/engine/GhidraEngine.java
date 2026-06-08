@@ -96,6 +96,9 @@ public interface GhidraEngine {
     /** One instruction in full: structured operands and raw PCode. */
     InstructionDetailResult instructionDetail(String address);
 
+    /** Processor languages Ghidra supports (optionally filtered by name) — its language picker. */
+    LanguagesResult listLanguages(String nameContains);
+
     /** Result of opening a program. */
     record OpenResult(
             boolean success,
@@ -268,6 +271,18 @@ public interface GhidraEngine {
 
         public static DataTypesResult failure(String error) {
             return new DataTypesResult(false, List.of(), error);
+        }
+    }
+
+    /** One processor language Ghidra supports. */
+    record LanguageInfo(String id, String processor, String endian, int size, String variant, String description) {
+    }
+
+    /** Result of a languages query. */
+    record LanguagesResult(boolean success, List<LanguageInfo> languages, String error) {
+
+        public static LanguagesResult failure(String error) {
+            return new LanguagesResult(false, List.of(), error);
         }
     }
 

@@ -33,6 +33,9 @@ import io.github.const24.ghidrasharp.proto.DataReply;
 import io.github.const24.ghidrasharp.proto.DataTypeInfo;
 import io.github.const24.ghidrasharp.proto.DataTypesReply;
 import io.github.const24.ghidrasharp.proto.DataTypesRequest;
+import io.github.const24.ghidrasharp.proto.LanguageDescriptor;
+import io.github.const24.ghidrasharp.proto.ListLanguagesReply;
+import io.github.const24.ghidrasharp.proto.ListLanguagesRequest;
 import io.github.const24.ghidrasharp.proto.FunctionDetail;
 import io.github.const24.ghidrasharp.proto.FunctionDetailReply;
 import io.github.const24.ghidrasharp.proto.FunctionRequest;
@@ -334,6 +337,26 @@ public final class GhidraSharpServiceImpl extends GhidraSharpServiceGrpc.GhidraS
                     .setPath(nullToEmpty(dt.path()))
                     .setKind(nullToEmpty(dt.kind()))
                     .setLength(dt.length())
+                    .build());
+        }
+        responseObserver.onNext(reply.build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void listLanguages(ListLanguagesRequest request, StreamObserver<ListLanguagesReply> responseObserver) {
+        GhidraEngine.LanguagesResult r = engine.listLanguages(request.getNameContains());
+        ListLanguagesReply.Builder reply = ListLanguagesReply.newBuilder()
+                .setSuccess(r.success())
+                .setError(nullToEmpty(r.error()));
+        for (GhidraEngine.LanguageInfo l : r.languages()) {
+            reply.addLanguages(LanguageDescriptor.newBuilder()
+                    .setId(nullToEmpty(l.id()))
+                    .setProcessor(nullToEmpty(l.processor()))
+                    .setEndian(nullToEmpty(l.endian()))
+                    .setSize(l.size())
+                    .setVariant(nullToEmpty(l.variant()))
+                    .setDescription(nullToEmpty(l.description()))
                     .build());
         }
         responseObserver.onNext(reply.build());

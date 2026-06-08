@@ -133,4 +133,9 @@ public final class StubEngine implements GhidraEngine {
     public InstructionDetailResult instructionDetail(String address) {
         return InstructionDetailResult.failure("GetInstructionDetail not implemented yet (StubEngine)");
     }
+
+    @Override
+    public LanguagesResult listLanguages(String nameContains) {
+        return LanguagesResult.failure("ListLanguages not implemented yet (StubEngine)");
+    }
 }

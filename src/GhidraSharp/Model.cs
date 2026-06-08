@@ -400,6 +400,28 @@ public sealed record InstructionDetail
     public required IReadOnlyList<PcodeOp> Pcode { get; init; }
 }
 
+/// <summary>A processor language Ghidra supports. Use <see cref="Id"/> as the languageId when importing a raw binary.</summary>
+public sealed record GhidraLanguage
+{
+    /// <summary>Language/compiler-spec id, e.g. <c>SuperH:BE:32:SH-2A</c>.</summary>
+    public required string Id { get; init; }
+
+    /// <summary>Processor name, e.g. <c>SuperH</c>.</summary>
+    public required string Processor { get; init; }
+
+    /// <summary>Byte order: <c>big</c> or <c>little</c>.</summary>
+    public required string Endian { get; init; }
+
+    /// <summary>Address size in bits, e.g. 32.</summary>
+    public required int Size { get; init; }
+
+    /// <summary>Processor variant, e.g. <c>SH-2A</c>.</summary>
+    public required string Variant { get; init; }
+
+    /// <summary>Human-readable description.</summary>
+    public required string Description { get; init; }
+}
+
 /// <summary>Error raised when the Ghidra server reports a failure for a request.</summary>
 public sealed class GhidraException : Exception
 {

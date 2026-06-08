@@ -77,8 +77,10 @@ Console.WriteLine(dec.CCode);
 ```
 
 `languageId` is the only Ghidra-specific input: pick the processor that matches
-your chip — e.g. `SuperH:BE:32:SH-2A`, `ARM:LE:32:v7`, `x86:LE:64:default`.
-Already have an analyzed Ghidra project? Open it with `OpenProgramAsync(...)`.
+your chip — e.g. `SuperH:BE:32:SH-2A`, `ARM:LE:32:v7`, `x86:LE:64:default`. Not
+sure which? `ListLanguagesAsync()` enumerates every one Ghidra supports (filter
+like `ListLanguagesAsync("SuperH")`). Already have an analyzed Ghidra project?
+Open it with `OpenProgramAsync(...)`.
 
 Prefer the client to own the process? Point `GhidraServer.StartAsync` at the
 unzipped server and it spawns + owns it for you (stopped on dispose):
@@ -86,8 +88,8 @@ unzipped server and it spawns + owns it for you (stopped on dispose):
 ```csharp
 await using var server = await GhidraServer.StartAsync(new GhidraServerOptions
 {
-    ServerDirectory  = @"C:\tools\ghidrasharp-server-0.1.1",
-    GhidraInstallDir = @"C:\ghidra_12.1_PUBLIC",
+    ServerDirectory  = @"C:\Ghidra\ghidrasharp-server-0.1.1",
+    GhidraInstallDir = @"C:\Ghidra\ghidra_12.1_PUBLIC",
 });
 var ghidra = server.Client;
 ```
@@ -134,6 +136,7 @@ Working bridge. The surface grows one RPC at a time as consumers need it.
 * `CreateProject` — import a binary into a new persistent project (`.gpr`/`.rep`), analyzed + saved
 * `SaveProgram` — persist edits (renames, applied types, comments) to disk
 * `RunScript` — escape hatch: run any GhidraScript and capture its output
+* `ListLanguages` — the processor languages Ghidra supports (its language picker), to pick a `languageId`
 
 Architecture-agnostic by construction — it just forwards a Ghidra language id, so
 the same code drives any processor Ghidra supports. Parity verified byte-for-byte

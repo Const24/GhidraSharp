@@ -142,4 +142,15 @@ class GhidraSharpServiceImplTest {
         SaveProgramReply r = stub.saveProgram(SaveProgramRequest.newBuilder().build());
         assertTrue(r.getSuccess());
     }
+
+    @Test
+    void listLanguages_maps_descriptors() {
+        ListLanguagesReply r = stub.listLanguages(ListLanguagesRequest.newBuilder().build());
+        assertTrue(r.getSuccess());
+        assertEquals(1, r.getLanguagesCount());
+        LanguageDescriptor l = r.getLanguages(0);
+        assertEquals("SuperH:BE:32:SH-2A", l.getId());
+        assertEquals("SuperH", l.getProcessor());
+        assertEquals(32, l.getSize());
+    }
 }

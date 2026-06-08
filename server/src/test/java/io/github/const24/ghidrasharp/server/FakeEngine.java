@@ -162,4 +162,10 @@ final class FakeEngine implements GhidraEngine {
                         List.of(new PcodeOpInfo("COPY", "(register, 0x4, 4)", List.of("(const, 0x10, 4)")))),
                 "");
     }
+
+    @Override
+    public LanguagesResult listLanguages(String nameContains) {
+        return new LanguagesResult(true,
+                List.of(new LanguageInfo("SuperH:BE:32:SH-2A", "SuperH", "big", 32, "SH-2A", "SuperH SH-2A")), "");
+    }
 }
