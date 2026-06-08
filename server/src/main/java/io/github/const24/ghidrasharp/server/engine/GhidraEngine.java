@@ -55,6 +55,9 @@ public interface GhidraEngine {
     /** Read disassembled instructions from {@code address} ({@code maxInstructions} <= 0 = whole containing function). */
     InstructionsResult instructionsAt(String address, int maxInstructions);
 
+    /** Full detail for one function (by entry address or name): typed signature, params, locals, callers. */
+    FunctionDetailResult getFunction(String address, String name, boolean includeCallers);
+
     /** Result of opening a program. */
     record OpenResult(
             boolean success,
@@ -168,6 +171,34 @@ public interface GhidraEngine {
 
         public static InstructionsResult failure(String error) {
             return new InstructionsResult(false, List.of(), error);
+        }
+    }
+
+    /** A parameter or local variable. */
+    record VariableInfo(String name, String dataType, String storage) {
+    }
+
+    /** Full detail for one function. */
+    record FunctionDetailInfo(
+            String name,
+            String entryAddress,
+            String signature,
+            String returnType,
+            String callingConvention,
+            boolean noReturn,
+            boolean varargs,
+            boolean inline,
+            long size,
+            List<VariableInfo> parameters,
+            List<VariableInfo> localVariables,
+            List<String> callers) {
+    }
+
+    /** Result of a function-detail query. */
+    record FunctionDetailResult(boolean success, FunctionDetailInfo function, String error) {
+
+        public static FunctionDetailResult failure(String error) {
+            return new FunctionDetailResult(false, null, error);
         }
     }
 }

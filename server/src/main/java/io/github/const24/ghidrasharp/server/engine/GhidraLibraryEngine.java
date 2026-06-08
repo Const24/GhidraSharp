@@ -13,7 +13,9 @@ import ghidra.framework.model.DomainFolder;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.Function;
 import ghidra.program.model.listing.Instruction;
+import ghidra.program.model.listing.Parameter;
 import ghidra.program.model.listing.Program;
+import ghidra.program.model.listing.Variable;
 import ghidra.program.model.symbol.Reference;
 import ghidra.program.model.symbol.ReferenceManager;
 import ghidra.program.model.symbol.RefType;
@@ -520,6 +522,62 @@ public final class GhidraLibraryEngine implements GhidraEngine {
                 program.endTransaction(tx, ok);
             }
         }
+    }
+
+    @Override
+    public FunctionDetailResult getFunction(String address, String name, boolean includeCallers) {
+        try {
+            synchronized (lock) {
+                if (program == null) {
+                    return FunctionDetailResult.failure("no program open; call OpenProgram first");
+                }
+                Function fn = resolveFunction(address, name);
+                if (fn == null) {
+                    String which = (address != null && !address.isBlank()) ? "address " + address : "name " + name;
+                    return FunctionDetailResult.failure("no function found at " + which);
+                }
+
+                List<VariableInfo> parameters = new ArrayList<>();
+                for (Parameter p : fn.getParameters()) {
+                    parameters.add(toVariable(p));
+                }
+                List<VariableInfo> locals = new ArrayList<>();
+                for (Variable v : fn.getLocalVariables()) {
+                    locals.add(toVariable(v));
+                }
+                List<String> callers = List.of();
+                if (includeCallers) {
+                    callers = new ArrayList<>();
+                    for (Function caller : fn.getCallingFunctions(TaskMonitor.DUMMY)) {
+                        callers.add(caller.getName());
+                    }
+                }
+
+                FunctionDetailInfo info = new FunctionDetailInfo(
+                        fn.getName(),
+                        fn.getEntryPoint().toString(),
+                        fn.getPrototypeString(true, false),
+                        fn.getReturnType() != null ? fn.getReturnType().getDisplayName() : "",
+                        fn.getCallingConventionName(),
+                        fn.hasNoReturn(),
+                        fn.hasVarArgs(),
+                        fn.isInline(),
+                        fn.getBody().getNumAddresses(),
+                        parameters,
+                        locals,
+                        callers);
+                return new FunctionDetailResult(true, info, "");
+            }
+        } catch (Exception e) {
+            return FunctionDetailResult.failure(describe(e));
+        }
+    }
+
+    private static VariableInfo toVariable(Variable v) {
+        return new VariableInfo(
+                v.getName(),
+                v.getDataType() != null ? v.getDataType().getDisplayName() : "",
+                String.valueOf(v.getVariableStorage()));
     }
 
     // --- decompile helpers --------------------------------------------------

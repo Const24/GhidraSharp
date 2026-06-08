@@ -307,6 +307,60 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
         }).ToList();
     }
 
+    /// <summary>Full detail for the function whose entry point is <paramref name="address"/> (hex).</summary>
+    /// <param name="address">Entry-point address of the function.</param>
+    /// <param name="includeCallers">Populate <see cref="FunctionDetail.Callers"/>.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="GhidraException">No program is open, or no function at the address.</exception>
+    public Task<FunctionDetail> GetFunctionAtAsync(string address, bool includeCallers = true, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(address);
+        return GetFunctionAsync(new FunctionRequest { Address = address, IncludeCallers = includeCallers }, ct);
+    }
+
+    /// <summary>Full detail for the function named <paramref name="name"/>.</summary>
+    /// <param name="name">Function name.</param>
+    /// <param name="includeCallers">Populate <see cref="FunctionDetail.Callers"/>.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="GhidraException">No program is open, or no such function.</exception>
+    public Task<FunctionDetail> GetFunctionByNameAsync(string name, bool includeCallers = true, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        return GetFunctionAsync(new FunctionRequest { Name = name, IncludeCallers = includeCallers }, ct);
+    }
+
+    private async Task<FunctionDetail> GetFunctionAsync(FunctionRequest request, CancellationToken ct)
+    {
+        var reply = await _client.GetFunctionAsync(request, cancellationToken: ct);
+        if (!reply.Success || reply.Function is null)
+        {
+            throw new GhidraException($"GetFunction failed: {reply.Error}");
+        }
+        var f = reply.Function;
+        return new FunctionDetail
+        {
+            Name = f.Name,
+            EntryPoint = f.EntryAddress,
+            Signature = f.Signature,
+            ReturnType = f.ReturnType,
+            CallingConvention = f.CallingConvention,
+            NoReturn = f.NoReturn,
+            VarArgs = f.Varargs,
+            Inline = f.Inline,
+            Size = f.Size,
+            Parameters = f.Parameters.Select(ToVariable).ToList(),
+            Locals = f.LocalVariables.Select(ToVariable).ToList(),
+            Callers = f.Callers.ToList(),
+        };
+    }
+
+    private static GhidraVariable ToVariable(Protocol.Variable v) => new()
+    {
+        Name = v.Name,
+        DataType = v.DataType,
+        Storage = v.Storage,
+    };
+
     private static IReadOnlyList<GhidraSymbol> ToSymbols(ListSymbolsReply reply)
     {
         if (!reply.Success)

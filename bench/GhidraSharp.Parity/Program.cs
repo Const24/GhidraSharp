@@ -124,6 +124,22 @@ await Time("bytes", async () =>
     return funcs.Count;
 });
 
+await Time("function_detail", async () =>
+{
+    var sb = new StringBuilder();
+    foreach (var f in funcs)
+    {
+        var fd = await g.GetFunctionAtAsync(f.EntryPoint, includeCallers: true);
+        var ps = string.Join(";", fd.Parameters.Select(p => $"{p.Name}|{p.DataType}|{p.Storage}"));
+        var ls = string.Join(";", fd.Locals.Select(v => $"{v.Name}|{v.DataType}|{v.Storage}"));
+        var callers = string.Join(";", fd.Callers.OrderBy(c => c, StringComparer.Ordinal));
+        sb.Append($"{fd.EntryPoint}\t{fd.Signature}\t{fd.ReturnType}\t{fd.CallingConvention}"
+                  + $"\t{Bool(fd.NoReturn)}\t{Bool(fd.VarArgs)}\t{Bool(fd.Inline)}\t{ps}\t{ls}\t{callers}\n");
+    }
+    Write("function_detail.txt", sb);
+    return funcs.Count;
+});
+
 File.WriteAllText(Path.Combine(outDir, "timings.json"),
     JsonSerializer.Serialize(timings, new JsonSerializerOptions { WriteIndented = true }));
 Console.WriteLine($"[parity/cs] done -> {outDir}");

@@ -175,6 +175,19 @@ static async Task<int> Run(GhidraClient ghidra, Dictionary<string, string> opts,
         }
     }
 
+    if (opts.TryGetValue("function", out var fnAddr))
+    {
+        var fd = await ghidra.GetFunctionAtAsync(fnAddr);
+        Console.WriteLine($"[function] {fd.Signature}");
+        Console.WriteLine($"  entry={fd.EntryPoint} size={fd.Size} cc={fd.CallingConvention} ret={fd.ReturnType} "
+                          + $"noReturn={fd.NoReturn} varArgs={fd.VarArgs}");
+        var ps = fd.Parameters.Count == 0
+            ? "(none)"
+            : string.Join(", ", fd.Parameters.Select(p => $"{p.DataType} {p.Name}@{p.Storage}"));
+        Console.WriteLine($"  params: {ps}");
+        Console.WriteLine($"  locals: {fd.Locals.Count}, callers: {fd.Callers.Count}");
+    }
+
     if (opts.ContainsKey("decompile-all"))
     {
         opts.TryGetValue("dump", out var dumpPath);

@@ -71,4 +71,9 @@ public final class StubEngine implements GhidraEngine {
     public InstructionsResult instructionsAt(String address, int maxInstructions) {
         return InstructionsResult.failure("GetInstructions not implemented yet (StubEngine)");
     }
+
+    @Override
+    public FunctionDetailResult getFunction(String address, String name, boolean includeCallers) {
+        return FunctionDetailResult.failure("GetFunction not implemented yet (StubEngine)");
+    }
 }

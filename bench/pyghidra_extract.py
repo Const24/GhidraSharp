@@ -166,12 +166,31 @@ def extract(program, out, timings, timed, DecompInterface, TaskMonitor) -> int:
             (out / "bytes.txt").write_text("".join(lines), encoding="utf-8", newline="")
             return len(funcs)
 
+        def dtname(v):
+            dt = v.getDataType()
+            return dt.getDisplayName() if dt is not None else ""
+
+        def function_detail():
+            lines = []
+            for f in funcs:
+                params = ";".join(f"{p.getName()}|{dtname(p)}|{p.getVariableStorage()}" for p in f.getParameters())
+                locals_ = ";".join(f"{v.getName()}|{dtname(v)}|{v.getVariableStorage()}" for v in f.getLocalVariables())
+                callers = ";".join(sorted(c.getName() for c in f.getCallingFunctions(mon)))
+                rt = f.getReturnType().getDisplayName() if f.getReturnType() is not None else ""
+                lines.append("\t".join([
+                    f.getEntryPoint().toString(), f.getPrototypeString(True, False), rt,
+                    f.getCallingConventionName() or "", b(f.hasNoReturn()), b(f.hasVarArgs()),
+                    b(f.isInline()), params, locals_, callers]) + "\n")
+            (out / "function_detail.txt").write_text("".join(lines), encoding="utf-8", newline="")
+            return len(funcs)
+
         timed("functions", functions)
         timed("symbols", symbols)
         timed("decompile", decompile)
         timed("instructions", instructions)
         timed("xrefs_to", xrefs_to)
         timed("bytes", read_bytes)
+        timed("function_detail", function_detail)
 
         (out / "timings.json").write_text(json.dumps(timings, indent=2), encoding="utf-8")
         print(f"[parity/py] done -> {out}")

@@ -32,6 +32,7 @@ Working bridge. The surface grows one RPC at a time as consumers need it.
 * `OpenProgram` — open an analyzed project, or import a binary
 * `DecompileFunction` / `DecompileFunctions` (batch, server-streamed) — function → C
 * `ListFunctions` — functions (+ callees), built to query client-side with LINQ
+* `GetFunction` — full detail for one function (typed signature, params, locals, callers)
 * `GetReferencesTo` / `GetReferencesFrom` — cross-references (xrefs)
 * `ListSymbols` / `GetSymbolsAt` — symbols by name or address
 * `RenameSymbol` — record a finding back onto the program (needs `writable: true`; in-memory unless saved)

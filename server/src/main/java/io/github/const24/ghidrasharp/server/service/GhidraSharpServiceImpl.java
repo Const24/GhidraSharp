@@ -12,6 +12,9 @@ import io.github.const24.ghidrasharp.proto.OpenProgramRequest;
 import io.github.const24.ghidrasharp.proto.PingReply;
 import io.github.const24.ghidrasharp.proto.PingRequest;
 import com.google.protobuf.ByteString;
+import io.github.const24.ghidrasharp.proto.FunctionDetail;
+import io.github.const24.ghidrasharp.proto.FunctionDetailReply;
+import io.github.const24.ghidrasharp.proto.FunctionRequest;
 import io.github.const24.ghidrasharp.proto.GhidraSymbol;
 import io.github.const24.ghidrasharp.proto.Instruction;
 import io.github.const24.ghidrasharp.proto.InstructionsReply;
@@ -26,6 +29,7 @@ import io.github.const24.ghidrasharp.proto.ReadBytesRequest;
 import io.github.const24.ghidrasharp.proto.RenameSymbolReply;
 import io.github.const24.ghidrasharp.proto.RenameSymbolRequest;
 import io.github.const24.ghidrasharp.proto.SymbolsAtRequest;
+import io.github.const24.ghidrasharp.proto.Variable;
 import io.github.const24.ghidrasharp.server.engine.GhidraEngine;
 import io.grpc.stub.StreamObserver;
 
@@ -230,6 +234,49 @@ public final class GhidraSharpServiceImpl extends GhidraSharpServiceGrpc.GhidraS
 
         responseObserver.onNext(reply.build());
         responseObserver.onCompleted();
+    }
+
+    @Override
+    public void getFunction(FunctionRequest request, StreamObserver<FunctionDetailReply> responseObserver) {
+        GhidraEngine.FunctionDetailResult r = engine.getFunction(
+                request.getAddress(), request.getName(), request.getIncludeCallers());
+
+        FunctionDetailReply.Builder reply = FunctionDetailReply.newBuilder()
+                .setSuccess(r.success())
+                .setError(nullToEmpty(r.error()));
+
+        if (r.success() && r.function() != null) {
+            GhidraEngine.FunctionDetailInfo f = r.function();
+            FunctionDetail.Builder detail = FunctionDetail.newBuilder()
+                    .setName(nullToEmpty(f.name()))
+                    .setEntryAddress(nullToEmpty(f.entryAddress()))
+                    .setSignature(nullToEmpty(f.signature()))
+                    .setReturnType(nullToEmpty(f.returnType()))
+                    .setCallingConvention(nullToEmpty(f.callingConvention()))
+                    .setNoReturn(f.noReturn())
+                    .setVarargs(f.varargs())
+                    .setInline(f.inline())
+                    .setSize(f.size())
+                    .addAllCallers(f.callers());
+            for (GhidraEngine.VariableInfo v : f.parameters()) {
+                detail.addParameters(toVariable(v));
+            }
+            for (GhidraEngine.VariableInfo v : f.localVariables()) {
+                detail.addLocalVariables(toVariable(v));
+            }
+            reply.setFunction(detail.build());
+        }
+
+        responseObserver.onNext(reply.build());
+        responseObserver.onCompleted();
+    }
+
+    private static Variable toVariable(GhidraEngine.VariableInfo v) {
+        return Variable.newBuilder()
+                .setName(nullToEmpty(v.name()))
+                .setDataType(nullToEmpty(v.dataType()))
+                .setStorage(nullToEmpty(v.storage()))
+                .build();
     }
 
     private static String nullToEmpty(String s) {

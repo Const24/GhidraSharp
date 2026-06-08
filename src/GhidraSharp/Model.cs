@@ -172,6 +172,62 @@ public sealed record Instruction
     public required int Length { get; init; }
 }
 
+/// <summary>A function parameter or local variable.</summary>
+public sealed record GhidraVariable
+{
+    /// <summary>The variable's name.</summary>
+    public required string Name { get; init; }
+
+    /// <summary>Its data type's display name, e.g. <c>"int"</c>, <c>"undefined4 *"</c>.</summary>
+    public required string DataType { get; init; }
+
+    /// <summary>Ghidra's storage description, e.g. <c>"r4:4"</c> (register) or <c>"Stack[-0x8]:4"</c>.</summary>
+    public required string Storage { get; init; }
+}
+
+/// <summary>
+/// Full detail for one function — the typed view beyond <see cref="GhidraFunction"/>:
+/// reconstructed prototype, parameters and locals with types, and callers.
+/// </summary>
+public sealed record FunctionDetail
+{
+    /// <summary>The function's name.</summary>
+    public required string Name { get; init; }
+
+    /// <summary>The entry-point address, as hex.</summary>
+    public required string EntryPoint { get; init; }
+
+    /// <summary>The reconstructed prototype string (with calling convention).</summary>
+    public required string Signature { get; init; }
+
+    /// <summary>The return type's display name.</summary>
+    public required string ReturnType { get; init; }
+
+    /// <summary>The calling convention name (e.g. <c>"__stdcall"</c>, <c>"default"</c>).</summary>
+    public required string CallingConvention { get; init; }
+
+    /// <summary>Whether the function is marked no-return.</summary>
+    public required bool NoReturn { get; init; }
+
+    /// <summary>Whether the function takes variadic arguments.</summary>
+    public required bool VarArgs { get; init; }
+
+    /// <summary>Whether the function is marked inline.</summary>
+    public required bool Inline { get; init; }
+
+    /// <summary>Size of the function body in addresses/bytes.</summary>
+    public required ulong Size { get; init; }
+
+    /// <summary>The parameters, in order.</summary>
+    public required IReadOnlyList<GhidraVariable> Parameters { get; init; }
+
+    /// <summary>The local variables.</summary>
+    public required IReadOnlyList<GhidraVariable> Locals { get; init; }
+
+    /// <summary>Names of the functions that call this one (populated when requested).</summary>
+    public required IReadOnlyList<string> Callers { get; init; }
+}
+
 /// <summary>Error raised when the Ghidra server reports a failure for a request.</summary>
 public sealed class GhidraException : Exception
 {

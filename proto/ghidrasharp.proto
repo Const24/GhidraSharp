@@ -58,6 +58,9 @@ service GhidraSharpService {
 
   // Read the disassembled instructions Ghidra has at an address (the listing).
   rpc GetInstructions(InstructionsRequest) returns (InstructionsReply);
+
+  // Full detail for one function: typed signature, parameters, locals, callers.
+  rpc GetFunction(FunctionRequest) returns (FunctionDetailReply);
 }
 
 message PingRequest {
@@ -241,5 +244,38 @@ message Instruction {
 message InstructionsReply {
   bool success = 1;
   repeated Instruction instructions = 2;
+  string error = 3;
+}
+
+message FunctionRequest {
+  string address = 1;        // entry (hex) ...
+  string name = 2;           // ...or function name
+  bool include_callers = 3;  // populate FunctionDetail.callers
+}
+
+message Variable {
+  string name = 1;
+  string data_type = 2;  // e.g. "int", "undefined4 *"
+  string storage = 3;    // Ghidra VariableStorage text, e.g. "r4:4" or "Stack[-0x8]:4"
+}
+
+message FunctionDetail {
+  string name = 1;
+  string entry_address = 2;
+  string signature = 3;            // full prototype string
+  string return_type = 4;
+  string calling_convention = 5;
+  bool no_return = 6;
+  bool varargs = 7;
+  bool inline = 8;
+  uint64 size = 9;
+  repeated Variable parameters = 10;
+  repeated Variable local_variables = 11;
+  repeated string callers = 12;    // names of calling functions (when include_callers)
+}
+
+message FunctionDetailReply {
+  bool success = 1;
+  FunctionDetail function = 2;
   string error = 3;
 }
