@@ -55,14 +55,17 @@ install (`GHIDRA_INSTALL_DIR`) — those aren't shipped.
 
 ## Quickstart
 
-From a raw firmware dump (`.bin`) to its decompiled functions — no prior Ghidra
-knowledge required:
+From a raw firmware dump (`.bin`) to its decompiled functions — install
+`Const24.GhidraSharp.Server`, point `GHIDRA_INSTALL_DIR` at your Ghidra, and go.
+No server to start, no paths but your firmware:
 
 ```csharp
 using Const24.GhidraSharp;
 
-// connect to a running server (see "Running the server" below)
-using var ghidra = GhidraClient.Connect("http://127.0.0.1:50080");
+// the Const24.GhidraSharp.Server package ships the server next to your app;
+// StartAsync finds + runs it, and stops it on dispose.
+await using var server = await GhidraServer.StartAsync();
+var ghidra = server.Client;
 
 // import the binary, auto-analyze it, and save it as a project.
 // languageId is the target chip's processor — here Renesas SH-2A (Subaru ECUs).
@@ -88,17 +91,8 @@ Console.WriteLine(dec.CCode);
 your chip — e.g. `SuperH:BE:32:SH-2A`, `ARM:LE:32:v7`, `x86:LE:64:default`. Not
 sure which? `ListLanguagesAsync()` enumerates every one Ghidra supports (filter
 like `ListLanguagesAsync("SuperH")`). Already have an analyzed Ghidra project?
-Open it with `OpenProgramAsync(...)`.
-
-Prefer the client to own the process? With the `Const24.GhidraSharp.Server` package
-the server is bundled next to your app, so `GhidraServer.StartAsync()` finds it,
-spawns it, and stops it on dispose — no paths:
-
-```csharp
-// with GHIDRA_INSTALL_DIR set (or pass GhidraInstallDir in the options)
-await using var server = await GhidraServer.StartAsync();
-var ghidra = server.Client;
-```
+Open it with `OpenProgramAsync(...)`. Running your own (or a shared) server? Skip
+`StartAsync` and use `GhidraClient.Connect("http://127.0.0.1:50080")`.
 
 ### Running the server
 
