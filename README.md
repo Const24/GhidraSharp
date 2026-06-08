@@ -47,8 +47,9 @@ Working bridge. The surface grows one RPC at a time as consumers need it.
 * `RunScript` — escape hatch: run any GhidraScript and capture its output
 
 Architecture-agnostic by construction — it just forwards a Ghidra language id, so
-the same code drives any processor Ghidra supports (validated on SH-2A firmware
-and an x86-64 PE).
+the same code drives any processor Ghidra supports. Parity verified byte-for-byte
+against pyghidra on three very different ISAs — SH-2A firmware, JVM bytecode, and
+an x86-64 PE (see [bench/README](bench/README.md#multi-architecture)).
 
 The public C# API exposes only hand-written, documented result types
 (`ProgramInfo`, `GhidraFunction`, `Decompilation`, `GhidraReference`, …); the

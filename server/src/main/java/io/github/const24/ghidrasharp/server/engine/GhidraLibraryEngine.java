@@ -1054,12 +1054,24 @@ public final class GhidraLibraryEngine implements GhidraEngine {
     }
 
     private Address parseAddress(String address) {
-        String s = address.trim().toLowerCase();
-        if (s.startsWith("0x")) {
-            s = s.substring(2);
+        if (address == null || address.isBlank()) {
+            return null;
         }
+        String s = address.trim();
+        // Space-qualified ("ram:00010000", as JVM/Dalvik/Harvard targets use) or a
+        // plain default-space address — let the AddressFactory parse it.
         try {
-            long offset = Long.parseLong(s, 16);
+            Address a = program.getAddressFactory().getAddress(s);
+            if (a != null) {
+                return a;
+            }
+        } catch (Exception ignore) {
+            // fall through to the bare-hex path
+        }
+        // Bare hex (optionally 0x-prefixed) into the default address space.
+        String hex = s.toLowerCase().startsWith("0x") ? s.substring(2) : s;
+        try {
+            long offset = Long.parseLong(hex, 16);
             return program.getAddressFactory().getDefaultAddressSpace().getAddress(offset);
         } catch (NumberFormatException e) {
             return null;

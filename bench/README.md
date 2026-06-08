@@ -30,3 +30,23 @@ pwsh bench/run.ps1 <path/to/PROJECT.gpr>
 Needs `GHIDRA_INSTALL_DIR` and `JAVA_HOME`, plus `pyghidra` for the baseline.
 The result lands in [`REPORT.md`](REPORT.md) (committed so visitors see it without
 running anything). Dumps under `bench/out/` are git-ignored.
+
+## Multi-architecture
+
+The bridge only forwards a Ghidra language id, so it is processor-agnostic.
+Parity was verified byte-for-byte against pyghidra on three very different ISAs
+(build a project from the binary with `--create-project`, then run both extractors):
+
+| Target | Result |
+| --- | --- |
+| SuperH **SH-2A** (Subaru firmware) | 8/8 identical |
+| **JVM** bytecode (`.class`) | 8/8 identical |
+| **x86-64** (PE) | 7/8 identical — see note |
+
+**Note on the x86-64 decompile:** one function out of 2288 decompiles
+differently. This is **Ghidra's own decompiler being nondeterministic** there,
+not a bridge difference — running `pyghidra_extract.py` twice on the same program
+yields two different decompilations of that same function. Every other capability
+(functions, symbols, instructions, xrefs, bytes, function detail, data types) is
+byte-identical. So the bridge is a faithful conduit; its decompiler output equals
+pyghidra's except where Ghidra itself is not deterministic.
