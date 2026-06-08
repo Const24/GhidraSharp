@@ -45,7 +45,7 @@ class GhidraSharpServiceImplTest {
     @Test
     void ping_reports_the_engine_version() {
         PingReply r = stub.ping(PingRequest.newBuilder().setMessage("hi").build());
-        assertEquals("fake-12.1", r.getGhidraVersion());
+        assertEquals("test-version", r.getGhidraVersion());
     }
 
     @Test

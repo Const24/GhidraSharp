@@ -15,7 +15,7 @@ final class FakeEngine implements GhidraEngine {
 
     @Override
     public String ghidraVersion() {
-        return "fake-12.1";
+        return "test-version";
     }
 
     @Override

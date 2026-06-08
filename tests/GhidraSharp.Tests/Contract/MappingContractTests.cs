@@ -13,7 +13,7 @@ public sealed class MappingContractTests(HappyServerFixture fixture) : IClassFix
     public async Task Ping_maps_version()
     {
         var info = await Client.PingAsync();
-        Assert.Equal("12.1-test", info.GhidraVersion);
+        Assert.Equal("test-version", info.GhidraVersion);
     }
 
     [Fact]

@@ -13,7 +13,7 @@ namespace Const24.GhidraSharp.Tests;
 internal sealed class HappyFake : ProtoSvc.GhidraSharpServiceBase
 {
     public override Task<PingReply> Ping(PingRequest request, ServerCallContext context) =>
-        Task.FromResult(new PingReply { Message = "pong", GhidraVersion = "12.1-test" });
+        Task.FromResult(new PingReply { Message = "pong", GhidraVersion = "test-version" });
 
     public override Task<OpenProgramReply> OpenProgram(OpenProgramRequest request, ServerCallContext context) =>
         Task.FromResult(new OpenProgramReply
