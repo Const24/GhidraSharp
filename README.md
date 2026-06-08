@@ -105,7 +105,7 @@ Working bridge. The surface grows one RPC at a time as consumers need it.
 Architecture-agnostic by construction — it just forwards a Ghidra language id, so
 the same code drives any processor Ghidra supports. Parity verified byte-for-byte
 against pyghidra on three very different ISAs — SH-2A firmware, JVM bytecode, and
-an x86-64 PE (see [bench/README](bench/README.md#multi-architecture)).
+an x86-64 PE (see [bench/README](https://github.com/Const24/GhidraSharp/blob/main/bench/README.md#multi-architecture)).
 
 The public C# API exposes only hand-written, documented result types
 (`ProgramInfo`, `GhidraFunction`, `Decompilation`, `GhidraReference`, …); the
@@ -114,7 +114,7 @@ read right to a Ghidra user, with XML docs that also explain each concept to a
 .NET developer new to Ghidra. Validated **byte-for-byte against pyghidra across
 the whole API** (functions, symbols, decompilation, instructions, xrefs, bytes,
 function detail, data types) at comparable speed — see the
-[parity report](bench/REPORT.md) and [bench/](bench/).
+[parity report](https://github.com/Const24/GhidraSharp/blob/main/bench/REPORT.md) and [bench/](https://github.com/Const24/GhidraSharp/tree/main/bench).
 
 ## Building the client
 
@@ -140,8 +140,8 @@ cd server && ./gradlew writeServerArgs            # once, to produce the argfile
 dotnet test tests/GhidraSharp.Tests --filter "Category=Integration"
 ```
 
-[`bench/`](bench/) is the acceptance + benchmark layer (byte-for-byte parity vs
-pyghidra); `python bench/verify.py` runs it. Tests under [`tests/`](tests/) and
+[`bench/`](https://github.com/Const24/GhidraSharp/tree/main/bench) is the acceptance + benchmark layer (byte-for-byte parity vs
+pyghidra); `python bench/verify.py` runs it. Tests under [`tests/`](https://github.com/Const24/GhidraSharp/tree/main/tests) and
 `server/src/test` are the unit/contract/integration layers.
 
 ## Scope — what's bridged, and what isn't
@@ -174,4 +174,4 @@ meant to be a local tool driven by a client on the same host — never expose it
 
 ## License
 
-[Apache-2.0](LICENSE) — same as Ghidra, with which the server links.
+[Apache-2.0](https://github.com/Const24/GhidraSharp/blob/main/LICENSE) — same as Ghidra, with which the server links.
