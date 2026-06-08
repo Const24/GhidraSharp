@@ -32,7 +32,8 @@ def ghidraJars = fileTree(ghidraInstall) {
 dependencies {
     implementation "io.grpc:grpc-protobuf:${grpcVersion}"
     implementation "io.grpc:grpc-stub:${grpcVersion}"
-    runtimeOnly   "io.grpc:grpc-netty-shaded:${grpcVersion}"
+    // compile (not runtimeOnly): we reference NettyServerBuilder to bind loopback-only.
+    implementation "io.grpc:grpc-netty-shaded:${grpcVersion}"
     implementation "com.google.protobuf:protobuf-java:${protobufVersion}"
     // javax.annotation.Generated referenced by generated gRPC stubs.
     compileOnly   "org.apache.tomcat:annotations-api:6.0.53"

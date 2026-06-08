@@ -250,6 +250,23 @@ internal sealed class CapturingFake : ProtoSvc.GhidraSharpServiceBase
         Task.FromResult(new AckReply { Success = false, Error = request.Type });
 }
 
+/// <summary>Returns a ListFunctions reply well over the default 4 MB gRPC receive cap.</summary>
+internal sealed class BigListFake : ProtoSvc.GhidraSharpServiceBase
+{
+    public const int Count = 5000;
+
+    public override Task<ListFunctionsReply> ListFunctions(ListFunctionsRequest request, ServerCallContext context)
+    {
+        var reply = new ListFunctionsReply { Success = true };
+        var name = new string('x', 1000); // 5000 * ~1 KB ≈ 5 MB, exceeds the 4 MB default
+        for (var i = 0; i < Count; i++)
+        {
+            reply.Functions.Add(new FunctionInfo { Name = name, EntryAddress = i.ToString("x8") });
+        }
+        return Task.FromResult(reply);
+    }
+}
+
 /// <summary>A fake that fails every request, to exercise the client's error handling.</summary>
 internal sealed class FailingFake : ProtoSvc.GhidraSharpServiceBase
 {

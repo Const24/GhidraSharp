@@ -114,6 +114,10 @@ The trade for these limits: a single typed .NET stack, no Python and no JVM in t
 consumer, reviewable end to end, and a correctness story you can verify yourself
 (`bench/`).
 
+**Security:** the server is unauthenticated and exposes `RunScript` (arbitrary
+GhidraScript) plus file and memory access, so it **binds to loopback only** and is
+meant to be a local tool driven by a client on the same host — never expose its port.
+
 ## License
 
 [Apache-2.0](LICENSE) — same as Ghidra, with which the server links.

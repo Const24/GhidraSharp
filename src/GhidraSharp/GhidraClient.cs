@@ -19,6 +19,10 @@ namespace Const24.GhidraSharp;
 /// </remarks>
 public sealed class GhidraClient : IAsyncDisposable, IDisposable
 {
+    // List replies (functions/symbols/data types) put the whole result in one
+    // message; the default 4 MB receive cap can be exceeded on a large program.
+    private const int MaxMessageBytes = 256 * 1024 * 1024;
+
     private readonly GrpcChannel _channel;
     private readonly ProtoSvc.GhidraSharpServiceClient _client;
 
@@ -33,7 +37,8 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
     public static GhidraClient Connect(string address)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(address);
-        return new GhidraClient(GrpcChannel.ForAddress(address));
+        var options = new GrpcChannelOptions { MaxReceiveMessageSize = MaxMessageBytes };
+        return new GhidraClient(GrpcChannel.ForAddress(address, options));
     }
 
     /// <summary>Connect using an already-configured channel (custom credentials, handler, etc.).</summary>
