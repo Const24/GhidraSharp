@@ -34,6 +34,15 @@ fills that gap with a deliberately small, typed surface:
 * **JDK 21 or later** — to build and run the server (Ghidra 12.1 requires 21+).
 * **Ghidra 12.1** — point `GHIDRA_INSTALL_DIR` at the install.
 
+## Install
+
+```sh
+dotnet add package Const24.GhidraSharp
+```
+
+That gets you the C# client. You also need a running `GhidraSharpServer` to talk
+to — build it from this repo (see [Running the server](#running-the-server)).
+
 ## Quickstart
 
 From a raw firmware dump (`.bin`) to its decompiled functions — no prior Ghidra
