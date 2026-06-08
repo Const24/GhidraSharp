@@ -633,7 +633,7 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
         };
     }
 
-    private static IReadOnlyList<GhidraSymbol> ToSymbols(ListSymbolsReply reply)
+    private static List<GhidraSymbol> ToSymbols(ListSymbolsReply reply)
     {
         if (!reply.Success)
         {
@@ -669,7 +669,7 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
         Error = r.Error,
     };
 
-    private static IReadOnlyList<GhidraReference> ToReferences(ReferencesReply reply)
+    private static List<GhidraReference> ToReferences(ReferencesReply reply)
     {
         if (!reply.Success)
         {
