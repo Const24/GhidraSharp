@@ -49,6 +49,12 @@ public interface GhidraEngine {
     /** Rename the symbol at {@code address} (or named {@code oldName}) to {@code newName}; needs a writable program. */
     RenameResult renameSymbol(String address, String oldName, String newName);
 
+    /** Read {@code length} raw bytes of program memory starting at {@code address}. */
+    BytesResult readBytes(String address, int length);
+
+    /** Read disassembled instructions from {@code address} ({@code maxInstructions} <= 0 = whole containing function). */
+    InstructionsResult instructionsAt(String address, int maxInstructions);
+
     /** Result of opening a program. */
     record OpenResult(
             boolean success,
@@ -137,6 +143,31 @@ public interface GhidraEngine {
 
         public static RenameResult failure(String error) {
             return new RenameResult(false, error, "", "");
+        }
+    }
+
+    /** Result of a raw-bytes read. */
+    record BytesResult(boolean success, byte[] data, String address, String error) {
+
+        public static BytesResult failure(String error) {
+            return new BytesResult(false, new byte[0], "", error);
+        }
+    }
+
+    /** One disassembled instruction. */
+    record InstructionInfo(
+            String address,
+            String mnemonic,
+            String representation,
+            byte[] rawBytes,
+            int length) {
+    }
+
+    /** Result of a disassembly-listing query. */
+    record InstructionsResult(boolean success, List<InstructionInfo> instructions, String error) {
+
+        public static InstructionsResult failure(String error) {
+            return new InstructionsResult(false, List.of(), error);
         }
     }
 }

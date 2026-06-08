@@ -10,6 +10,7 @@ import ghidra.framework.model.DomainFile;
 import ghidra.framework.model.DomainFolder;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.Function;
+import ghidra.program.model.listing.Instruction;
 import ghidra.program.model.listing.Program;
 import ghidra.program.model.symbol.Reference;
 import ghidra.program.model.symbol.ReferenceManager;
@@ -38,6 +39,8 @@ public final class GhidraLibraryEngine implements GhidraEngine {
 
     private static final int DEFAULT_TIMEOUT_SECONDS = 60;
     private static final String PROGRAM_CONTENT_TYPE = "Program";
+    private static final int MAX_READ_BYTES = 1 << 20;       // 1 MiB cap per ReadBytes
+    private static final int DEFAULT_INSTRUCTIONS = 64;       // when no count and not inside a function
 
     private final Object lock = new Object();
     private final String installDir;
@@ -355,6 +358,89 @@ public final class GhidraLibraryEngine implements GhidraEngine {
                 String.valueOf(s.getSource()),
                 s.isPrimary(),
                 s.isGlobal());
+    }
+
+    @Override
+    public BytesResult readBytes(String address, int length) {
+        try {
+            synchronized (lock) {
+                if (program == null) {
+                    return BytesResult.failure("no program open; call OpenProgram first");
+                }
+                if (length <= 0) {
+                    return BytesResult.failure("length must be > 0");
+                }
+                Address addr = parseAddress(address);
+                if (addr == null) {
+                    return BytesResult.failure("bad address: " + address);
+                }
+                int capped = Math.min(length, MAX_READ_BYTES);
+                byte[] buf = new byte[capped];
+                int read = program.getMemory().getBytes(addr, buf);
+                byte[] data = (read == capped) ? buf : java.util.Arrays.copyOf(buf, Math.max(0, read));
+                return new BytesResult(true, data, addr.toString(), "");
+            }
+        } catch (Exception e) {
+            return BytesResult.failure(describe(e));
+        }
+    }
+
+    @Override
+    public InstructionsResult instructionsAt(String address, int maxInstructions) {
+        try {
+            synchronized (lock) {
+                if (program == null) {
+                    return InstructionsResult.failure("no program open; call OpenProgram first");
+                }
+                Address addr = parseAddress(address);
+                if (addr == null) {
+                    return InstructionsResult.failure("bad address: " + address);
+                }
+
+                Address end = null;
+                int cap;
+                if (maxInstructions > 0) {
+                    cap = maxInstructions;
+                } else {
+                    Function fn = program.getFunctionManager().getFunctionContaining(addr);
+                    if (fn != null) {
+                        end = fn.getBody().getMaxAddress();
+                        cap = Integer.MAX_VALUE;
+                    } else {
+                        cap = DEFAULT_INSTRUCTIONS;
+                    }
+                }
+
+                List<InstructionInfo> out = new ArrayList<>();
+                for (Instruction ins : program.getListing().getInstructions(addr, true)) {
+                    if (end != null && ins.getAddress().compareTo(end) > 0) {
+                        break;
+                    }
+                    out.add(toInstruction(ins));
+                    if (out.size() >= cap) {
+                        break;
+                    }
+                }
+                return new InstructionsResult(true, out, "");
+            }
+        } catch (Exception e) {
+            return InstructionsResult.failure(describe(e));
+        }
+    }
+
+    private static InstructionInfo toInstruction(Instruction ins) {
+        byte[] bytes;
+        try {
+            bytes = ins.getBytes();
+        } catch (Exception e) {
+            bytes = new byte[0];
+        }
+        return new InstructionInfo(
+                ins.getAddress().toString(),
+                ins.getMnemonicString(),
+                ins.toString(),
+                bytes,
+                ins.getLength());
     }
 
     // --- open helpers -------------------------------------------------------

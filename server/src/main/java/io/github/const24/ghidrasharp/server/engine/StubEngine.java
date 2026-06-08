@@ -61,4 +61,14 @@ public final class StubEngine implements GhidraEngine {
     public RenameResult renameSymbol(String address, String oldName, String newName) {
         return RenameResult.failure("RenameSymbol not implemented yet (StubEngine)");
     }
+
+    @Override
+    public BytesResult readBytes(String address, int length) {
+        return BytesResult.failure("ReadBytes not implemented yet (StubEngine)");
+    }
+
+    @Override
+    public InstructionsResult instructionsAt(String address, int maxInstructions) {
+        return InstructionsResult.failure("GetInstructions not implemented yet (StubEngine)");
+    }
 }

@@ -35,6 +35,8 @@ Working bridge. The surface grows one RPC at a time as consumers need it.
 * `GetReferencesTo` / `GetReferencesFrom` — cross-references (xrefs)
 * `ListSymbols` / `GetSymbolsAt` — symbols by name or address
 * `RenameSymbol` — record a finding back onto the program (needs `writable: true`; in-memory unless saved)
+* `ReadBytes` — raw program memory (feeds a pure-C# byte/table layer)
+* `GetInstructions` — the disassembly listing (mnemonic, operands, bytes)
 
 Architecture-agnostic by construction — it just forwards a Ghidra language id, so
 the same code drives any processor Ghidra supports (validated on SH-2A firmware

@@ -11,12 +11,18 @@ import io.github.const24.ghidrasharp.proto.OpenProgramReply;
 import io.github.const24.ghidrasharp.proto.OpenProgramRequest;
 import io.github.const24.ghidrasharp.proto.PingReply;
 import io.github.const24.ghidrasharp.proto.PingRequest;
+import com.google.protobuf.ByteString;
 import io.github.const24.ghidrasharp.proto.GhidraSymbol;
+import io.github.const24.ghidrasharp.proto.Instruction;
+import io.github.const24.ghidrasharp.proto.InstructionsReply;
+import io.github.const24.ghidrasharp.proto.InstructionsRequest;
 import io.github.const24.ghidrasharp.proto.ListSymbolsReply;
 import io.github.const24.ghidrasharp.proto.ListSymbolsRequest;
 import io.github.const24.ghidrasharp.proto.Reference;
 import io.github.const24.ghidrasharp.proto.ReferencesReply;
 import io.github.const24.ghidrasharp.proto.ReferencesRequest;
+import io.github.const24.ghidrasharp.proto.ReadBytesReply;
+import io.github.const24.ghidrasharp.proto.ReadBytesRequest;
 import io.github.const24.ghidrasharp.proto.RenameSymbolReply;
 import io.github.const24.ghidrasharp.proto.RenameSymbolRequest;
 import io.github.const24.ghidrasharp.proto.SymbolsAtRequest;
@@ -190,6 +196,40 @@ public final class GhidraSharpServiceImpl extends GhidraSharpServiceGrpc.GhidraS
 
         observer.onNext(reply.build());
         observer.onCompleted();
+    }
+
+    @Override
+    public void readBytes(ReadBytesRequest request, StreamObserver<ReadBytesReply> responseObserver) {
+        GhidraEngine.BytesResult r = engine.readBytes(request.getAddress(), request.getLength());
+        responseObserver.onNext(ReadBytesReply.newBuilder()
+                .setSuccess(r.success())
+                .setData(ByteString.copyFrom(r.data()))
+                .setAddress(nullToEmpty(r.address()))
+                .setError(nullToEmpty(r.error()))
+                .build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void getInstructions(InstructionsRequest request, StreamObserver<InstructionsReply> responseObserver) {
+        GhidraEngine.InstructionsResult r = engine.instructionsAt(request.getAddress(), request.getMaxInstructions());
+
+        InstructionsReply.Builder reply = InstructionsReply.newBuilder()
+                .setSuccess(r.success())
+                .setError(nullToEmpty(r.error()));
+
+        for (GhidraEngine.InstructionInfo i : r.instructions()) {
+            reply.addInstructions(Instruction.newBuilder()
+                    .setAddress(nullToEmpty(i.address()))
+                    .setMnemonic(nullToEmpty(i.mnemonic()))
+                    .setRepresentation(nullToEmpty(i.representation()))
+                    .setRawBytes(ByteString.copyFrom(i.rawBytes()))
+                    .setLength(i.length())
+                    .build());
+        }
+
+        responseObserver.onNext(reply.build());
+        responseObserver.onCompleted();
     }
 
     private static String nullToEmpty(String s) {

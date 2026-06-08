@@ -260,6 +260,53 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
         }
     }
 
+    /// <summary>Read <paramref name="length"/> raw bytes of program memory starting at <paramref name="address"/> (hex).</summary>
+    /// <param name="address">Start address.</param>
+    /// <param name="length">Number of bytes to read (the server caps very large reads; fewer may be returned at a memory-block boundary).</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="GhidraException">No program is open, the address is invalid, or the region is unreadable.</exception>
+    public async Task<byte[]> ReadBytesAsync(string address, int length, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(address);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(length);
+        var reply = await _client.ReadBytesAsync(
+            new ReadBytesRequest { Address = address, Length = length }, cancellationToken: ct);
+        if (!reply.Success)
+        {
+            throw new GhidraException($"ReadBytes failed: {reply.Error}");
+        }
+        return reply.Data.ToByteArray();
+    }
+
+    /// <summary>
+    /// Read the disassembled instructions (the listing) Ghidra already has at
+    /// <paramref name="address"/>. Does not run the disassembler — it returns what
+    /// analysis produced.
+    /// </summary>
+    /// <param name="address">Start address (hex).</param>
+    /// <param name="maxInstructions">Maximum instructions to return; 0 returns the whole function containing the address (or a default cap when not inside one).</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="GhidraException">No program is open, or the address is invalid.</exception>
+    public async Task<IReadOnlyList<Instruction>> GetInstructionsAsync(
+        string address, int maxInstructions = 0, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(address);
+        var reply = await _client.GetInstructionsAsync(
+            new InstructionsRequest { Address = address, MaxInstructions = maxInstructions }, cancellationToken: ct);
+        if (!reply.Success)
+        {
+            throw new GhidraException($"GetInstructions failed: {reply.Error}");
+        }
+        return reply.Instructions.Select(i => new Instruction
+        {
+            Address = i.Address,
+            Mnemonic = i.Mnemonic,
+            Representation = i.Representation,
+            Bytes = i.RawBytes.ToByteArray(),
+            Length = i.Length,
+        }).ToList();
+    }
+
     private static IReadOnlyList<GhidraSymbol> ToSymbols(ListSymbolsReply reply)
     {
         if (!reply.Success)

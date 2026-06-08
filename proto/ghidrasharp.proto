@@ -52,6 +52,12 @@ service GhidraSharpService {
   // Rename a symbol (persist a finding). Requires the program to be opened
   // writable; the change is in-memory unless the program is later saved.
   rpc RenameSymbol(RenameSymbolRequest) returns (RenameSymbolReply);
+
+  // Read raw bytes from program memory.
+  rpc ReadBytes(ReadBytesRequest) returns (ReadBytesReply);
+
+  // Read the disassembled instructions Ghidra has at an address (the listing).
+  rpc GetInstructions(InstructionsRequest) returns (InstructionsReply);
 }
 
 message PingRequest {
@@ -205,4 +211,35 @@ message RenameSymbolReply {
   string error = 2;
   string address = 3;
   string new_name = 4;
+}
+
+message ReadBytesRequest {
+  string address = 1;  // hex
+  int32 length = 2;    // number of bytes to read
+}
+
+message ReadBytesReply {
+  bool success = 1;
+  bytes data = 2;      // the bytes actually read (may be shorter at a block boundary)
+  string address = 3;
+  string error = 4;
+}
+
+message InstructionsRequest {
+  string address = 1;        // start (hex)
+  int32 max_instructions = 2; // 0 = the whole containing function (or a default cap)
+}
+
+message Instruction {
+  string address = 1;
+  string mnemonic = 2;        // e.g. "mov.l"
+  string representation = 3;  // full instruction text, e.g. "mov.l @r4,r1"
+  bytes raw_bytes = 4;        // the instruction's encoded bytes
+  int32 length = 5;           // instruction length in bytes
+}
+
+message InstructionsReply {
+  bool success = 1;
+  repeated Instruction instructions = 2;
+  string error = 3;
 }

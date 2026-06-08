@@ -153,6 +153,25 @@ public sealed record GhidraSymbol
     public required bool IsGlobal { get; init; }
 }
 
+/// <summary>A single disassembled machine instruction from the program listing.</summary>
+public sealed record Instruction
+{
+    /// <summary>The instruction's address, as hex.</summary>
+    public required string Address { get; init; }
+
+    /// <summary>The mnemonic, e.g. <c>"mov.l"</c> (Ghidra's <c>getMnemonicString()</c>).</summary>
+    public required string Mnemonic { get; init; }
+
+    /// <summary>The full instruction text including operands, e.g. <c>"mov.l @r4,r1"</c>.</summary>
+    public required string Representation { get; init; }
+
+    /// <summary>The instruction's encoded bytes.</summary>
+    public required byte[] Bytes { get; init; }
+
+    /// <summary>The instruction length in bytes.</summary>
+    public required int Length { get; init; }
+}
+
 /// <summary>Error raised when the Ghidra server reports a failure for a request.</summary>
 public sealed class GhidraException : Exception
 {

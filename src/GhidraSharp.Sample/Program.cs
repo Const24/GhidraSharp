@@ -157,6 +157,24 @@ static async Task<int> Run(GhidraClient ghidra, Dictionary<string, string> opts,
         Console.WriteLine($"[rename] now: \"{after.FirstOrDefault()?.Name}\" (in-memory; not saved)");
     }
 
+    if (opts.TryGetValue("bytes", out var bytesAddr))
+    {
+        var len = int.TryParse(opts.GetValueOrDefault("len", "16"), out var l) ? l : 16;
+        var data = await ghidra.ReadBytesAsync(bytesAddr, len);
+        Console.WriteLine($"[bytes {bytesAddr}] {data.Length}: {Convert.ToHexString(data)}");
+    }
+
+    if (opts.TryGetValue("disasm", out var disAddr))
+    {
+        var count = int.TryParse(opts.GetValueOrDefault("count", "12"), out var c) ? c : 12;
+        var instrs = await ghidra.GetInstructionsAsync(disAddr, count);
+        Console.WriteLine($"[disasm {disAddr}] {instrs.Count} instructions:");
+        foreach (var ins in instrs)
+        {
+            Console.WriteLine($"  {ins.Address}  {Convert.ToHexString(ins.Bytes),-10} {ins.Representation}");
+        }
+    }
+
     if (opts.ContainsKey("decompile-all"))
     {
         opts.TryGetValue("dump", out var dumpPath);
