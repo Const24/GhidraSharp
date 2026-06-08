@@ -230,6 +230,48 @@ static async Task<int> Run(GhidraClient ghidra, Dictionary<string, string> opts,
         if (output.Stderr.Length > 0) Console.Error.Write(output.Stderr);
     }
 
+    if (opts.TryGetValue("comments", out var comAddr))
+    {
+        var c = await ghidra.GetCommentsAsync(comAddr);
+        Console.WriteLine($"[comments {comAddr}] eol=\"{c.Eol}\" pre=\"{c.Pre}\" post=\"{c.Post}\" plate=\"{c.Plate}\" repeatable=\"{c.Repeatable}\"");
+    }
+
+    if (opts.TryGetValue("set-comment", out var scAddr))
+    {
+        var type = Enum.TryParse<CommentType>(opts.GetValueOrDefault("comment-type", "Eol"), ignoreCase: true, out var t) ? t : CommentType.Eol;
+        await ghidra.SetCommentAsync(scAddr, type, opts.GetValueOrDefault("comment-text", ""));
+        Console.WriteLine($"[set-comment] {scAddr} {type} set (in-memory; use --save to persist)");
+    }
+
+    if (opts.TryGetValue("set-bookmark", out var sbAddr))
+    {
+        await ghidra.SetBookmarkAsync(sbAddr, comment: opts.GetValueOrDefault("bookmark-text", "ghidrasharp"));
+        Console.WriteLine($"[set-bookmark] {sbAddr} set (in-memory; use --save to persist)");
+    }
+
+    if (opts.TryGetValue("bookmarks", out var bmAddr))
+    {
+        var bms = await ghidra.GetBookmarksAsync(bmAddr);
+        Console.WriteLine($"[bookmarks {bmAddr}] {bms.Count}:");
+        foreach (var b in bms) Console.WriteLine($"  [{b.Type}/{b.Category}] {b.Comment}");
+    }
+
+    if (opts.TryGetValue("instr-detail", out var idAddr))
+    {
+        var d = await ghidra.GetInstructionDetailAsync(idAddr);
+        Console.WriteLine($"[instr {d.Address}] {d.Representation}  ({Convert.ToHexString(d.Bytes)})");
+        foreach (var o in d.Operands)
+        {
+            var extra = (o.Register.Length > 0 ? $" reg={o.Register}" : "") + (o.HasScalar ? $" scalar=0x{o.Scalar:x}" : "");
+            Console.WriteLine($"  op{o.Index}: {o.Representation}  [{o.Type}]{extra}");
+        }
+        Console.WriteLine($"  pcode ({d.Pcode.Count}):");
+        foreach (var p in d.Pcode)
+        {
+            Console.WriteLine($"    {(p.Output.Length > 0 ? p.Output + " = " : "")}{p.Mnemonic} {string.Join(", ", p.Inputs)}");
+        }
+    }
+
     if (opts.ContainsKey("save"))
     {
         await ghidra.SaveProgramAsync();

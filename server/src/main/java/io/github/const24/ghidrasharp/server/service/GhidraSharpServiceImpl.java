@@ -12,8 +12,21 @@ import io.github.const24.ghidrasharp.proto.OpenProgramRequest;
 import io.github.const24.ghidrasharp.proto.PingReply;
 import io.github.const24.ghidrasharp.proto.PingRequest;
 import com.google.protobuf.ByteString;
+import io.github.const24.ghidrasharp.proto.AckReply;
 import io.github.const24.ghidrasharp.proto.ApplyDataTypeRequest;
+import io.github.const24.ghidrasharp.proto.Bookmark;
+import io.github.const24.ghidrasharp.proto.BookmarksReply;
+import io.github.const24.ghidrasharp.proto.BookmarksRequest;
+import io.github.const24.ghidrasharp.proto.CommentsReply;
+import io.github.const24.ghidrasharp.proto.CommentsRequest;
 import io.github.const24.ghidrasharp.proto.CreateProjectRequest;
+import io.github.const24.ghidrasharp.proto.InstructionDetail;
+import io.github.const24.ghidrasharp.proto.InstructionDetailReply;
+import io.github.const24.ghidrasharp.proto.InstructionDetailRequest;
+import io.github.const24.ghidrasharp.proto.Operand;
+import io.github.const24.ghidrasharp.proto.PcodeOp;
+import io.github.const24.ghidrasharp.proto.SetBookmarkRequest;
+import io.github.const24.ghidrasharp.proto.SetCommentRequest;
 import io.github.const24.ghidrasharp.proto.DataAtRequest;
 import io.github.const24.ghidrasharp.proto.DataItem;
 import io.github.const24.ghidrasharp.proto.DataReply;
@@ -380,6 +393,100 @@ public final class GhidraSharpServiceImpl extends GhidraSharpServiceGrpc.GhidraS
                 .setError(nullToEmpty(r.error()))
                 .build());
         responseObserver.onCompleted();
+    }
+
+    @Override
+    public void getComments(CommentsRequest request, StreamObserver<CommentsReply> responseObserver) {
+        GhidraEngine.CommentsResult r = engine.getComments(request.getAddress());
+        CommentsReply.Builder reply = CommentsReply.newBuilder()
+                .setSuccess(r.success())
+                .setError(nullToEmpty(r.error()));
+        if (r.comments() != null) {
+            GhidraEngine.CommentsInfo c = r.comments();
+            reply.setAddress(nullToEmpty(c.address()))
+                    .setEol(nullToEmpty(c.eol()))
+                    .setPre(nullToEmpty(c.pre()))
+                    .setPost(nullToEmpty(c.post()))
+                    .setPlate(nullToEmpty(c.plate()))
+                    .setRepeatable(nullToEmpty(c.repeatable()));
+        }
+        responseObserver.onNext(reply.build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void setComment(SetCommentRequest request, StreamObserver<AckReply> responseObserver) {
+        respondAck(engine.setComment(request.getAddress(), request.getType(), request.getComment()), responseObserver);
+    }
+
+    @Override
+    public void getBookmarks(BookmarksRequest request, StreamObserver<BookmarksReply> responseObserver) {
+        GhidraEngine.BookmarksResult r = engine.getBookmarks(request.getAddress());
+        BookmarksReply.Builder reply = BookmarksReply.newBuilder()
+                .setSuccess(r.success())
+                .setError(nullToEmpty(r.error()));
+        for (GhidraEngine.BookmarkInfo b : r.bookmarks()) {
+            reply.addBookmarks(Bookmark.newBuilder()
+                    .setAddress(nullToEmpty(b.address()))
+                    .setType(nullToEmpty(b.type()))
+                    .setCategory(nullToEmpty(b.category()))
+                    .setComment(nullToEmpty(b.comment()))
+                    .build());
+        }
+        responseObserver.onNext(reply.build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void setBookmark(SetBookmarkRequest request, StreamObserver<AckReply> responseObserver) {
+        respondAck(engine.setBookmark(request.getAddress(), request.getType(),
+                request.getCategory(), request.getComment()), responseObserver);
+    }
+
+    @Override
+    public void getInstructionDetail(InstructionDetailRequest request,
+                                     StreamObserver<InstructionDetailReply> responseObserver) {
+        GhidraEngine.InstructionDetailResult r = engine.instructionDetail(request.getAddress());
+        InstructionDetailReply.Builder reply = InstructionDetailReply.newBuilder()
+                .setSuccess(r.success())
+                .setError(nullToEmpty(r.error()));
+        if (r.instruction() != null) {
+            GhidraEngine.InstructionDetailInfo d = r.instruction();
+            InstructionDetail.Builder detail = InstructionDetail.newBuilder()
+                    .setAddress(nullToEmpty(d.address()))
+                    .setMnemonic(nullToEmpty(d.mnemonic()))
+                    .setRepresentation(nullToEmpty(d.representation()))
+                    .setRawBytes(ByteString.copyFrom(d.rawBytes()))
+                    .setLength(d.length());
+            for (GhidraEngine.OperandInfo o : d.operands()) {
+                detail.addOperands(Operand.newBuilder()
+                        .setIndex(o.index())
+                        .setRepresentation(nullToEmpty(o.representation()))
+                        .setType(nullToEmpty(o.type()))
+                        .setRegister(nullToEmpty(o.register()))
+                        .setHasScalar(o.hasScalar())
+                        .setScalar(o.scalar())
+                        .build());
+            }
+            for (GhidraEngine.PcodeOpInfo p : d.pcode()) {
+                detail.addPcode(PcodeOp.newBuilder()
+                        .setMnemonic(nullToEmpty(p.mnemonic()))
+                        .setOutput(nullToEmpty(p.output()))
+                        .addAllInputs(p.inputs())
+                        .build());
+            }
+            reply.setInstruction(detail.build());
+        }
+        responseObserver.onNext(reply.build());
+        responseObserver.onCompleted();
+    }
+
+    private static void respondAck(GhidraEngine.AckResult r, StreamObserver<AckReply> observer) {
+        observer.onNext(AckReply.newBuilder()
+                .setSuccess(r.success())
+                .setError(nullToEmpty(r.error()))
+                .build());
+        observer.onCompleted();
     }
 
     private static String nullToEmpty(String s) {

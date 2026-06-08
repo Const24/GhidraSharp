@@ -77,6 +77,21 @@ public interface GhidraEngine {
     /** Persist the current (writable, project-backed) program to disk. */
     SaveResult saveProgram();
 
+    /** All comment types at an address. */
+    CommentsResult getComments(String address);
+
+    /** Set (or clear) a comment of {@code type} at an address; needs a writable program. */
+    AckResult setComment(String address, String type, String comment);
+
+    /** Bookmarks at an address. */
+    BookmarksResult getBookmarks(String address);
+
+    /** Add a bookmark at an address; needs a writable program. */
+    AckResult setBookmark(String address, String type, String category, String comment);
+
+    /** One instruction in full: structured operands and raw PCode. */
+    InstructionDetailResult instructionDetail(String address);
+
     /** Result of opening a program. */
     record OpenResult(
             boolean success,
@@ -265,6 +280,69 @@ public interface GhidraEngine {
 
         public static SaveResult failure(String error) {
             return new SaveResult(false, error);
+        }
+    }
+
+    /** Generic ack for small mutating calls. */
+    record AckResult(boolean success, String error) {
+
+        public static AckResult ok() {
+            return new AckResult(true, "");
+        }
+
+        public static AckResult failure(String error) {
+            return new AckResult(false, error);
+        }
+    }
+
+    /** Comments at an address (all five types). */
+    record CommentsInfo(String address, String eol, String pre, String post, String plate, String repeatable) {
+    }
+
+    /** Result of a comments query. */
+    record CommentsResult(boolean success, CommentsInfo comments, String error) {
+
+        public static CommentsResult failure(String error) {
+            return new CommentsResult(false, null, error);
+        }
+    }
+
+    /** One bookmark. */
+    record BookmarkInfo(String address, String type, String category, String comment) {
+    }
+
+    /** Result of a bookmarks query. */
+    record BookmarksResult(boolean success, List<BookmarkInfo> bookmarks, String error) {
+
+        public static BookmarksResult failure(String error) {
+            return new BookmarksResult(false, List.of(), error);
+        }
+    }
+
+    /** One instruction operand. */
+    record OperandInfo(int index, String representation, String type, String register, boolean hasScalar, long scalar) {
+    }
+
+    /** One raw PCode operation. */
+    record PcodeOpInfo(String mnemonic, String output, List<String> inputs) {
+    }
+
+    /** One instruction in full. */
+    record InstructionDetailInfo(
+            String address,
+            String mnemonic,
+            String representation,
+            byte[] rawBytes,
+            int length,
+            List<OperandInfo> operands,
+            List<PcodeOpInfo> pcode) {
+    }
+
+    /** Result of an instruction-detail query. */
+    record InstructionDetailResult(boolean success, InstructionDetailInfo instruction, String error) {
+
+        public static InstructionDetailResult failure(String error) {
+            return new InstructionDetailResult(false, null, error);
         }
     }
 }

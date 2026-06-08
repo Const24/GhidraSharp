@@ -282,6 +282,124 @@ public sealed record ScriptOutput
     public required string Stderr { get; init; }
 }
 
+/// <summary>The kind of comment, matching Ghidra's comment types.</summary>
+public enum CommentType
+{
+    /// <summary>End-of-line comment.</summary>
+    Eol,
+
+    /// <summary>Comment before the code unit.</summary>
+    Pre,
+
+    /// <summary>Comment after the code unit.</summary>
+    Post,
+
+    /// <summary>Plate (banner) comment above a function/block.</summary>
+    Plate,
+
+    /// <summary>Repeatable comment (shown at every reference site).</summary>
+    Repeatable,
+}
+
+/// <summary>The comments of every type at an address.</summary>
+public sealed record Comments
+{
+    /// <summary>End-of-line comment (empty if none).</summary>
+    public required string Eol { get; init; }
+
+    /// <summary>Pre comment.</summary>
+    public required string Pre { get; init; }
+
+    /// <summary>Post comment.</summary>
+    public required string Post { get; init; }
+
+    /// <summary>Plate comment.</summary>
+    public required string Plate { get; init; }
+
+    /// <summary>Repeatable comment.</summary>
+    public required string Repeatable { get; init; }
+}
+
+/// <summary>A bookmark (a marked, categorized note Ghidra keeps at an address).</summary>
+public sealed record GhidraBookmark
+{
+    /// <summary>The bookmarked address, as hex.</summary>
+    public required string Address { get; init; }
+
+    /// <summary>The bookmark type, e.g. <c>"Note"</c>, <c>"Analysis"</c>, <c>"Error"</c>.</summary>
+    public required string Type { get; init; }
+
+    /// <summary>Its category.</summary>
+    public required string Category { get; init; }
+
+    /// <summary>Its comment text.</summary>
+    public required string Comment { get; init; }
+}
+
+/// <summary>One operand of an instruction.</summary>
+public sealed record Operand
+{
+    /// <summary>Operand index within the instruction.</summary>
+    public required int Index { get; init; }
+
+    /// <summary>How the operand renders, e.g. <c>"@r4"</c>, <c>"0x10"</c>.</summary>
+    public required string Representation { get; init; }
+
+    /// <summary>Ghidra's <c>OperandType</c> flags as text (e.g. <c>"register"</c>, <c>"scalar | address"</c>).</summary>
+    public required string Type { get; init; }
+
+    /// <summary>Register name when the operand is a register; otherwise empty.</summary>
+    public required string Register { get; init; }
+
+    /// <summary>Whether the operand carries a scalar constant.</summary>
+    public required bool HasScalar { get; init; }
+
+    /// <summary>The scalar value, when <see cref="HasScalar"/>.</summary>
+    public required long Scalar { get; init; }
+}
+
+/// <summary>One raw PCode operation — Ghidra's low-level IR for an instruction.</summary>
+public sealed record PcodeOp
+{
+    /// <summary>The op's mnemonic, e.g. <c>"COPY"</c>, <c>"INT_ADD"</c>, <c>"LOAD"</c>.</summary>
+    public required string Mnemonic { get; init; }
+
+    /// <summary>The output varnode as text, or empty when the op has no output.</summary>
+    public required string Output { get; init; }
+
+    /// <summary>The input varnodes as text.</summary>
+    public required IReadOnlyList<string> Inputs { get; init; }
+}
+
+/// <summary>
+/// One instruction in full: its operands (structured) and its raw PCode. The
+/// deeper decompiler IR (high PCode / HighFunction) is intentionally not bridged —
+/// reach it with <see cref="GhidraClient.RunScriptAsync"/>.
+/// </summary>
+public sealed record InstructionDetail
+{
+    /// <summary>The instruction's address, as hex.</summary>
+    public required string Address { get; init; }
+
+    /// <summary>The mnemonic.</summary>
+    public required string Mnemonic { get; init; }
+
+    /// <summary>The full instruction text.</summary>
+    public required string Representation { get; init; }
+
+    /// <summary>The encoded bytes.</summary>
+    public required byte[] Bytes { get; init; }
+
+    /// <summary>Length in bytes.</summary>
+    public required int Length { get; init; }
+
+    /// <summary>The structured operands.</summary>
+    public required IReadOnlyList<Operand> Operands { get; init; }
+
+    /// <summary>The raw PCode operations the instruction lifts to.</summary>
+    public required IReadOnlyList<PcodeOp> Pcode { get; init; }
+}
+
 /// <summary>Error raised when the Ghidra server reports a failure for a request.</summary>
 public sealed class GhidraException : Exception
 {

@@ -107,4 +107,29 @@ public final class StubEngine implements GhidraEngine {
     public SaveResult saveProgram() {
         return SaveResult.failure("SaveProgram not implemented yet (StubEngine)");
     }
+
+    @Override
+    public CommentsResult getComments(String address) {
+        return CommentsResult.failure("GetComments not implemented yet (StubEngine)");
+    }
+
+    @Override
+    public AckResult setComment(String address, String type, String comment) {
+        return AckResult.failure("SetComment not implemented yet (StubEngine)");
+    }
+
+    @Override
+    public BookmarksResult getBookmarks(String address) {
+        return BookmarksResult.failure("GetBookmarks not implemented yet (StubEngine)");
+    }
+
+    @Override
+    public AckResult setBookmark(String address, String type, String category, String comment) {
+        return AckResult.failure("SetBookmark not implemented yet (StubEngine)");
+    }
+
+    @Override
+    public InstructionDetailResult instructionDetail(String address) {
+        return InstructionDetailResult.failure("GetInstructionDetail not implemented yet (StubEngine)");
+    }
 }

@@ -81,6 +81,17 @@ service GhidraSharpService {
 
   // Persist the current (writable, project-backed) program's changes to disk.
   rpc SaveProgram(SaveProgramRequest) returns (SaveProgramReply);
+
+  // Comments at an address (all five Ghidra comment types).
+  rpc GetComments(CommentsRequest) returns (CommentsReply);
+  rpc SetComment(SetCommentRequest) returns (AckReply);
+
+  // Bookmarks at an address.
+  rpc GetBookmarks(BookmarksRequest) returns (BookmarksReply);
+  rpc SetBookmark(SetBookmarkRequest) returns (AckReply);
+
+  // One instruction in full: structured operands + raw PCode.
+  rpc GetInstructionDetail(InstructionDetailRequest) returns (InstructionDetailReply);
 }
 
 message PingRequest {
@@ -369,4 +380,90 @@ message SaveProgramRequest {
 message SaveProgramReply {
   bool success = 1;
   string error = 2;
+}
+
+// Generic ack for small mutating calls.
+message AckReply {
+  bool success = 1;
+  string error = 2;
+}
+
+message CommentsRequest {
+  string address = 1;
+}
+
+message CommentsReply {
+  bool success = 1;
+  string address = 2;
+  string eol = 3;
+  string pre = 4;
+  string post = 5;
+  string plate = 6;
+  string repeatable = 7;
+  string error = 8;
+}
+
+message SetCommentRequest {
+  string address = 1;
+  string type = 2;     // EOL | PRE | POST | PLATE | REPEATABLE
+  string comment = 3;  // empty clears it
+}
+
+message BookmarksRequest {
+  string address = 1;
+}
+
+message Bookmark {
+  string address = 1;
+  string type = 2;
+  string category = 3;
+  string comment = 4;
+}
+
+message BookmarksReply {
+  bool success = 1;
+  repeated Bookmark bookmarks = 2;
+  string error = 3;
+}
+
+message SetBookmarkRequest {
+  string address = 1;
+  string type = 2;      // bookmark type (e.g. "Note")
+  string category = 3;
+  string comment = 4;
+}
+
+message InstructionDetailRequest {
+  string address = 1;
+}
+
+message Operand {
+  int32 index = 1;
+  string representation = 2;  // e.g. "@r4", "0x10"
+  string type = 3;           // OperandType flags as text
+  string register = 4;       // register name, if a register operand
+  bool has_scalar = 5;
+  int64 scalar = 6;          // scalar value, when has_scalar
+}
+
+message PcodeOp {
+  string mnemonic = 1;        // e.g. "COPY", "INT_ADD", "LOAD"
+  string output = 2;          // output varnode, or empty
+  repeated string inputs = 3; // input varnodes
+}
+
+message InstructionDetail {
+  string address = 1;
+  string mnemonic = 2;
+  string representation = 3;
+  bytes raw_bytes = 4;
+  int32 length = 5;
+  repeated Operand operands = 6;
+  repeated PcodeOp pcode = 7;
+}
+
+message InstructionDetailReply {
+  bool success = 1;
+  InstructionDetail instruction = 2;
+  string error = 3;
 }

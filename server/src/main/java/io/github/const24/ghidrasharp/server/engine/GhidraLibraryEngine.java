@@ -14,7 +14,12 @@ import ghidra.app.util.opinion.LoadResults;
 import ghidra.base.project.GhidraProject;
 import ghidra.program.model.data.DataType;
 import ghidra.program.model.data.DataTypeManager;
+import ghidra.program.model.lang.OperandType;
+import ghidra.program.model.listing.Bookmark;
+import ghidra.program.model.listing.BookmarkManager;
+import ghidra.program.model.listing.CommentType;
 import ghidra.program.model.listing.Data;
+import ghidra.program.model.pcode.PcodeOp;
 import ghidra.framework.Application;
 import ghidra.framework.HeadlessGhidraApplicationConfiguration;
 import ghidra.framework.model.DomainFile;
@@ -534,6 +539,184 @@ public final class GhidraLibraryEngine implements GhidraEngine {
         } catch (Exception e) {
             return SaveResult.failure(describe(e));
         }
+    }
+
+    @Override
+    public CommentsResult getComments(String address) {
+        try {
+            synchronized (lock) {
+                if (program == null) {
+                    return CommentsResult.failure("no program open; call OpenProgram first");
+                }
+                Address addr = parseAddress(address);
+                if (addr == null) {
+                    return CommentsResult.failure("bad address: " + address);
+                }
+                var listing = program.getListing();
+                CommentsInfo info = new CommentsInfo(
+                        addr.toString(),
+                        nz(listing.getComment(CommentType.EOL, addr)),
+                        nz(listing.getComment(CommentType.PRE, addr)),
+                        nz(listing.getComment(CommentType.POST, addr)),
+                        nz(listing.getComment(CommentType.PLATE, addr)),
+                        nz(listing.getComment(CommentType.REPEATABLE, addr)));
+                return new CommentsResult(true, info, "");
+            }
+        } catch (Exception e) {
+            return CommentsResult.failure(describe(e));
+        }
+    }
+
+    @Override
+    public AckResult setComment(String address, String type, String comment) {
+        try {
+            synchronized (lock) {
+                if (program == null) {
+                    return AckResult.failure("no program open; call OpenProgram first");
+                }
+                Address addr = parseAddress(address);
+                if (addr == null) {
+                    return AckResult.failure("bad address: " + address);
+                }
+                CommentType ct = parseCommentType(type);
+                if (ct == null) {
+                    return AckResult.failure("bad comment type: " + type + " (EOL|PRE|POST|PLATE|REPEATABLE)");
+                }
+                int tx = program.startTransaction("SetComment");
+                boolean ok = false;
+                try {
+                    program.getListing().setComment(addr, ct,
+                            (comment == null || comment.isEmpty()) ? null : comment);
+                    ok = true;
+                } finally {
+                    program.endTransaction(tx, ok);
+                }
+                return AckResult.ok();
+            }
+        } catch (Exception e) {
+            return AckResult.failure(describe(e));
+        }
+    }
+
+    @Override
+    public BookmarksResult getBookmarks(String address) {
+        try {
+            synchronized (lock) {
+                if (program == null) {
+                    return BookmarksResult.failure("no program open; call OpenProgram first");
+                }
+                Address addr = parseAddress(address);
+                if (addr == null) {
+                    return BookmarksResult.failure("bad address: " + address);
+                }
+                List<BookmarkInfo> out = new ArrayList<>();
+                for (Bookmark b : program.getBookmarkManager().getBookmarks(addr)) {
+                    out.add(new BookmarkInfo(b.getAddress().toString(), nz(b.getTypeString()),
+                            nz(b.getCategory()), nz(b.getComment())));
+                }
+                return new BookmarksResult(true, out, "");
+            }
+        } catch (Exception e) {
+            return BookmarksResult.failure(describe(e));
+        }
+    }
+
+    @Override
+    public AckResult setBookmark(String address, String type, String category, String comment) {
+        try {
+            synchronized (lock) {
+                if (program == null) {
+                    return AckResult.failure("no program open; call OpenProgram first");
+                }
+                Address addr = parseAddress(address);
+                if (addr == null) {
+                    return AckResult.failure("bad address: " + address);
+                }
+                BookmarkManager bm = program.getBookmarkManager();
+                int tx = program.startTransaction("SetBookmark");
+                boolean ok = false;
+                try {
+                    bm.setBookmark(addr, nz(type).isEmpty() ? "Note" : type, nz(category), nz(comment));
+                    ok = true;
+                } finally {
+                    program.endTransaction(tx, ok);
+                }
+                return AckResult.ok();
+            }
+        } catch (Exception e) {
+            return AckResult.failure(describe(e));
+        }
+    }
+
+    @Override
+    public InstructionDetailResult instructionDetail(String address) {
+        try {
+            synchronized (lock) {
+                if (program == null) {
+                    return InstructionDetailResult.failure("no program open; call OpenProgram first");
+                }
+                Address addr = parseAddress(address);
+                if (addr == null) {
+                    return InstructionDetailResult.failure("bad address: " + address);
+                }
+                Instruction ins = program.getListing().getInstructionAt(addr);
+                if (ins == null) {
+                    return InstructionDetailResult.failure("no instruction at " + address);
+                }
+
+                List<OperandInfo> operands = new ArrayList<>();
+                for (int i = 0; i < ins.getNumOperands(); i++) {
+                    var register = ins.getRegister(i);
+                    var scalar = ins.getScalar(i);
+                    operands.add(new OperandInfo(
+                            i,
+                            ins.getDefaultOperandRepresentation(i),
+                            OperandType.toString(ins.getOperandType(i)),
+                            register != null ? register.getName() : "",
+                            scalar != null,
+                            scalar != null ? scalar.getValue() : 0L));
+                }
+
+                List<PcodeOpInfo> pcode = new ArrayList<>();
+                for (PcodeOp op : ins.getPcode()) {
+                    var output = op.getOutput();
+                    List<String> inputs = new ArrayList<>();
+                    for (var vn : op.getInputs()) {
+                        inputs.add(vn.toString());
+                    }
+                    pcode.add(new PcodeOpInfo(op.getMnemonic(), output != null ? output.toString() : "", inputs));
+                }
+
+                byte[] bytes;
+                try {
+                    bytes = ins.getBytes();
+                } catch (Exception e) {
+                    bytes = new byte[0];
+                }
+
+                InstructionDetailInfo info = new InstructionDetailInfo(
+                        ins.getAddress().toString(), ins.getMnemonicString(), ins.toString(),
+                        bytes, ins.getLength(), operands, pcode);
+                return new InstructionDetailResult(true, info, "");
+            }
+        } catch (Exception e) {
+            return InstructionDetailResult.failure(describe(e));
+        }
+    }
+
+    private static CommentType parseCommentType(String type) {
+        if (type == null) {
+            return null;
+        }
+        try {
+            return CommentType.valueOf(type.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    private static String nz(String s) {
+        return s == null ? "" : s;
     }
 
     // --- open helpers -------------------------------------------------------

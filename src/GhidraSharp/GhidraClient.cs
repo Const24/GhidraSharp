@@ -514,6 +514,125 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
         };
     }
 
+    /// <summary>All comment types at <paramref name="address"/> (hex). Empty strings where there's no comment.</summary>
+    /// <param name="address">The address to read.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="GhidraException">No program is open, or the address is invalid.</exception>
+    public async Task<Comments> GetCommentsAsync(string address, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(address);
+        var reply = await _client.GetCommentsAsync(new CommentsRequest { Address = address }, cancellationToken: ct);
+        if (!reply.Success)
+        {
+            throw new GhidraException($"GetComments failed: {reply.Error}");
+        }
+        return new Comments
+        {
+            Eol = reply.Eol,
+            Pre = reply.Pre,
+            Post = reply.Post,
+            Plate = reply.Plate,
+            Repeatable = reply.Repeatable,
+        };
+    }
+
+    /// <summary>Set (or, with an empty string, clear) a comment of <paramref name="type"/> at <paramref name="address"/>. Needs a writable program.</summary>
+    /// <param name="address">The address (hex).</param>
+    /// <param name="type">Which comment to set.</param>
+    /// <param name="comment">The text; empty clears it.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="GhidraException">Read-only program or invalid address.</exception>
+    public async Task SetCommentAsync(string address, CommentType type, string comment, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(address);
+        var reply = await _client.SetCommentAsync(
+            new SetCommentRequest { Address = address, Type = type.ToString(), Comment = comment ?? "" },
+            cancellationToken: ct);
+        if (!reply.Success)
+        {
+            throw new GhidraException($"SetComment failed: {reply.Error}");
+        }
+    }
+
+    /// <summary>Bookmarks at <paramref name="address"/> (hex).</summary>
+    /// <param name="address">The address to read.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="GhidraException">No program is open, or the address is invalid.</exception>
+    public async Task<IReadOnlyList<GhidraBookmark>> GetBookmarksAsync(string address, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(address);
+        var reply = await _client.GetBookmarksAsync(new BookmarksRequest { Address = address }, cancellationToken: ct);
+        if (!reply.Success)
+        {
+            throw new GhidraException($"GetBookmarks failed: {reply.Error}");
+        }
+        return reply.Bookmarks.Select(b => new GhidraBookmark
+        {
+            Address = b.Address,
+            Type = b.Type,
+            Category = b.Category,
+            Comment = b.Comment,
+        }).ToList();
+    }
+
+    /// <summary>Add a bookmark at <paramref name="address"/>. Needs a writable program.</summary>
+    /// <param name="address">The address (hex).</param>
+    /// <param name="type">Bookmark type (defaults to <c>"Note"</c> server-side if empty).</param>
+    /// <param name="category">Optional category.</param>
+    /// <param name="comment">Optional comment.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="GhidraException">Read-only program or invalid address.</exception>
+    public async Task SetBookmarkAsync(string address, string type = "Note", string category = "", string comment = "", CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(address);
+        var reply = await _client.SetBookmarkAsync(
+            new SetBookmarkRequest { Address = address, Type = type ?? "", Category = category ?? "", Comment = comment ?? "" },
+            cancellationToken: ct);
+        if (!reply.Success)
+        {
+            throw new GhidraException($"SetBookmark failed: {reply.Error}");
+        }
+    }
+
+    /// <summary>One instruction in full: structured operands and raw PCode, at <paramref name="address"/> (hex).</summary>
+    /// <param name="address">The instruction's address.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="GhidraException">No program is open, no instruction there, or invalid address.</exception>
+    public async Task<InstructionDetail> GetInstructionDetailAsync(string address, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(address);
+        var reply = await _client.GetInstructionDetailAsync(
+            new InstructionDetailRequest { Address = address }, cancellationToken: ct);
+        if (!reply.Success || reply.Instruction is null)
+        {
+            throw new GhidraException($"GetInstructionDetail failed: {reply.Error}");
+        }
+        var d = reply.Instruction;
+        return new InstructionDetail
+        {
+            Address = d.Address,
+            Mnemonic = d.Mnemonic,
+            Representation = d.Representation,
+            Bytes = d.RawBytes.ToByteArray(),
+            Length = d.Length,
+            Operands = d.Operands.Select(o => new Operand
+            {
+                Index = o.Index,
+                Representation = o.Representation,
+                Type = o.Type,
+                Register = o.Register,
+                HasScalar = o.HasScalar,
+                Scalar = o.Scalar,
+            }).ToList(),
+            Pcode = d.Pcode.Select(p => new PcodeOp
+            {
+                Mnemonic = p.Mnemonic,
+                Output = p.Output,
+                Inputs = p.Inputs.ToList(),
+            }).ToList(),
+        };
+    }
+
     private static IReadOnlyList<GhidraSymbol> ToSymbols(ListSymbolsReply reply)
     {
         if (!reply.Success)

@@ -39,8 +39,11 @@ Working bridge. The surface grows one RPC at a time as consumers need it.
 * `ReadBytes` — raw program memory (feeds a pure-C# byte/table layer)
 * `GetInstructions` — the disassembly listing (mnemonic, operands, bytes)
 * `GetDataAt` / `ListDataTypes` / `ApplyDataType` — defined data and data types
+* `GetInstructionDetail` — one instruction's structured operands + raw PCode
+* `GetComments` / `SetComment` — comments (all five Ghidra types)
+* `GetBookmarks` / `SetBookmark` — bookmarks
 * `CreateProject` — import a binary into a new persistent project (`.gpr`/`.rep`), analyzed + saved
-* `SaveProgram` — persist edits (renames, applied types) to disk
+* `SaveProgram` — persist edits (renames, applied types, comments) to disk
 * `RunScript` — escape hatch: run any GhidraScript and capture its output
 
 Architecture-agnostic by construction — it just forwards a Ghidra language id, so
@@ -71,8 +74,9 @@ The goal is a curated, typed, documented surface over the **core RE operations**
 
 * **Arbitrary Ghidra API / live object graph** — you get flat result records, not
   walkable Ghidra objects.
-* **Decompiler internals** — C text and a typed signature, but not `HighFunction`,
-  raw/refined **PCode**, or C-token↔address markup.
+* **Decompiler internals** — C text, a typed signature, and per-instruction **raw
+  PCode** are exposed, but not the decompiler's high PCode / `HighFunction`
+  (data-flow SSA) or C-token↔address markup.
 * **In-process scripting semantics** — no ad-hoc evaluation of Java/Python against
   the live program.
 
