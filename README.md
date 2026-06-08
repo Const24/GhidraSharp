@@ -96,6 +96,14 @@ var ghidra = server.Client;
 
 ### Running the server
 
+There are two ways to run it:
+
+* **Standalone (below)** — run the launcher; it stays up until you stop it, so it can
+  be reused across many client runs, driven by non-.NET clients, or run as a service.
+  Connect with `GhidraClient.Connect("http://127.0.0.1:50080")`.
+* **Client-spawned** — `GhidraServer.StartAsync` (with `ServerDirectory`) launches and
+  owns a server for one .NET app and stops it on dispose (see the Quickstart above).
+
 Download `ghidrasharp-server-<version>.zip` from
 [Releases](https://github.com/Const24/GhidraSharp/releases), unzip it, point
 `GHIDRA_INSTALL_DIR` at your Ghidra install, and run the launcher (needs JDK 21+):
@@ -112,8 +120,9 @@ export GHIDRA_INSTALL_DIR=/opt/ghidra_12.1_PUBLIC
 ./ghidrasharp-server.sh
 ```
 
-It listens on `127.0.0.1:50080`. Building from source instead? `cd server &&
-./gradlew writeServerArgs`, then `java @build/ghidrasharp-java.args`.
+It listens on `127.0.0.1:50080` and runs until you stop it (Ctrl+C, or close the
+terminal — it shuts down gracefully; there is no idle timeout). Building from source
+instead? `cd server && ./gradlew writeServerArgs`, then `java @build/ghidrasharp-java.args`.
 
 ## Status
 
