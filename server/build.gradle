@@ -84,7 +84,21 @@ protobuf {
 
 application {
     mainClass = 'io.github.const24.ghidrasharp.server.GhidraSharpServer'
+    applicationName = 'ghidrasharp-server'
 }
+
+// Distribution = our jar + gRPC/protobuf jars + the launcher scripts in src/dist.
+// Ghidra jars are deliberately NOT bundled (added to the source set, not the
+// dependency configuration); the launchers add them from GHIDRA_INSTALL_DIR.
+distributions {
+    main {
+        distributionBaseName = 'ghidrasharp-server'
+    }
+}
+
+// Gradle's generated start scripts can't see the Ghidra jars; ship only our
+// ghidrasharp-server.ps1 / .sh launchers (from src/dist).
+tasks.named('startScripts') { enabled = false }
 
 // Emit a Java @argfile (classpath + main class) so a non-Gradle launcher (the
 // C# GhidraServer) can start the server with `java @<file>`. Keeps the Ghidra

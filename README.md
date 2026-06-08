@@ -40,8 +40,10 @@ fills that gap with a deliberately small, typed surface:
 dotnet add package Const24.GhidraSharp
 ```
 
-That gets you the C# client. You also need a running `GhidraSharpServer` to talk
-to — build it from this repo (see [Running the server](#running-the-server)).
+That gets you the C# client. You also need the **GhidraSharpServer** it talks to —
+download `ghidrasharp-server-<version>.zip` from
+[Releases](https://github.com/Const24/GhidraSharp/releases) (see
+[Running the server](#running-the-server)).
 
 ## Quickstart
 
@@ -83,11 +85,24 @@ server, hands you a connected `Client`, and stops it on dispose.
 
 ### Running the server
 
-```sh
-cd server
-./gradlew writeServerArgs                 # generate the launch argfile (once)
-GHIDRA_INSTALL_DIR=/path/to/ghidra_12.1_PUBLIC java @build/ghidrasharp-java.args
+Download `ghidrasharp-server-<version>.zip` from
+[Releases](https://github.com/Const24/GhidraSharp/releases), unzip it, point
+`GHIDRA_INSTALL_DIR` at your Ghidra install, and run the launcher (needs JDK 21+):
+
+```powershell
+# Windows (PowerShell)
+$env:GHIDRA_INSTALL_DIR = "C:\ghidra_12.1_PUBLIC"
+.\ghidrasharp-server.ps1
 ```
+
+```sh
+# Linux / macOS
+export GHIDRA_INSTALL_DIR=/opt/ghidra_12.1_PUBLIC
+./ghidrasharp-server.sh
+```
+
+It listens on `127.0.0.1:50080`. Building from source instead? `cd server &&
+./gradlew writeServerArgs`, then `java @build/ghidrasharp-java.args`.
 
 ## Status
 
