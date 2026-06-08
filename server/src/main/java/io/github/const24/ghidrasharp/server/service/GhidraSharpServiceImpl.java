@@ -76,6 +76,7 @@ public final class GhidraSharpServiceImpl extends GhidraSharpServiceGrpc.GhidraS
         PingReply reply = PingReply.newBuilder()
                 .setMessage("pong: " + request.getMessage())
                 .setGhidraVersion(engine.ghidraVersion())
+                .setServerVersion(serverVersion())
                 .build();
         responseObserver.onNext(reply);
         responseObserver.onCompleted();
@@ -521,5 +522,11 @@ public final class GhidraSharpServiceImpl extends GhidraSharpServiceGrpc.GhidraS
 
     private static String nullToEmpty(String s) {
         return s == null ? "" : s;
+    }
+
+    /** This server's own version, from the jar manifest (empty when run from a non-jar classpath). */
+    private static String serverVersion() {
+        String v = GhidraSharpServiceImpl.class.getPackage().getImplementationVersion();
+        return v == null ? "" : v;
     }
 }

@@ -105,6 +105,7 @@ message PingRequest {
 message PingReply {
   string message = 1;
   string ghidra_version = 2;
+  string server_version = 3;  // the GhidraSharpServer's own version, for the client compat check
 }
 
 message OpenProgramRequest {

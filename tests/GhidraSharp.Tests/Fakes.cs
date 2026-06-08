@@ -13,7 +13,7 @@ namespace Const24.GhidraSharp.Tests;
 internal sealed class HappyFake : ProtoSvc.GhidraSharpServiceBase
 {
     public override Task<PingReply> Ping(PingRequest request, ServerCallContext context) =>
-        Task.FromResult(new PingReply { Message = "pong", GhidraVersion = "test-version" });
+        Task.FromResult(new PingReply { Message = "pong", GhidraVersion = "test-version", ServerVersion = "test-server" });
 
     public override Task<OpenProgramReply> OpenProgram(OpenProgramRequest request, ServerCallContext context) =>
         Task.FromResult(new OpenProgramReply
@@ -279,6 +279,12 @@ internal sealed class BigListFake : ProtoSvc.GhidraSharpServiceBase
         }
         return Task.FromResult(reply);
     }
+}
+
+/// <summary>Overrides nothing — every RPC returns UNIMPLEMENTED, like a server older than
+/// the client. Exercises the version-skew error path.</summary>
+internal sealed class BareFake : ProtoSvc.GhidraSharpServiceBase
+{
 }
 
 /// <summary>A fake that fails every request, to exercise the client's error handling.</summary>

@@ -11,6 +11,10 @@ public sealed record ServerInfo
 {
     /// <summary>The Ghidra release version, e.g. <c>"12.1"</c> (Ghidra's <c>Application.getApplicationVersion()</c>).</summary>
     public required string GhidraVersion { get; init; }
+
+    /// <summary>The GhidraSharpServer's own version, e.g. <c>"0.2.0"</c> (empty if the server predates this field).
+    /// Compare with your installed client package version to catch a client/server skew.</summary>
+    public string ServerVersion { get; init; } = "";
 }
 
 /// <summary>

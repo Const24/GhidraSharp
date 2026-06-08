@@ -82,6 +82,13 @@ protobuf {
     }
 }
 
+// Stamp the jar so the server can report its own version in the Ping handshake.
+jar {
+    manifest {
+        attributes('Implementation-Version': project.version)
+    }
+}
+
 application {
     mainClass = 'io.github.const24.ghidrasharp.server.GhidraSharpServer'
     applicationName = 'ghidrasharp-server'

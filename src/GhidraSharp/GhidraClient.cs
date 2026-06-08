@@ -58,7 +58,7 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
     public async Task<ServerInfo> PingAsync(CancellationToken ct = default)
     {
         var reply = await _client.PingAsync(new PingRequest { Message = "ping" }, cancellationToken: ct);
-        return new ServerInfo { GhidraVersion = reply.GhidraVersion };
+        return new ServerInfo { GhidraVersion = reply.GhidraVersion, ServerVersion = reply.ServerVersion };
     }
 
     /// <summary>List the processor languages Ghidra supports — its language picker. Use a returned

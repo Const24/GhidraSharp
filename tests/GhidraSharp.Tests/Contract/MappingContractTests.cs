@@ -14,6 +14,7 @@ public sealed class MappingContractTests(HappyServerFixture fixture) : IClassFix
     {
         var info = await Client.PingAsync();
         Assert.Equal("test-version", info.GhidraVersion);
+        Assert.Equal("test-server", info.ServerVersion);
     }
 
     [Fact]

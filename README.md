@@ -161,6 +161,15 @@ the whole API** (functions, symbols, decompilation, instructions, xrefs, bytes,
 function detail, data types) at comparable speed — see the
 [parity report](https://github.com/Const24/GhidraSharp/blob/main/bench/REPORT.md) and [bench/](https://github.com/Const24/GhidraSharp/tree/main/bench).
 
+## Versioning
+
+The client and server share one wire contract, so keep their versions matched —
+install a server release of the same version as the `Const24.GhidraSharp` package.
+Updating the NuGet package does not touch your server folder; download the matching
+server release too. Mismatches fail loudly, not silently: `PingAsync().ServerVersion`
+reports the server's version, and calling an RPC a too-old server lacks throws a
+clear error telling you to update it.
+
 ## Building the client
 
 ```sh
