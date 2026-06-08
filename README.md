@@ -11,10 +11,10 @@ protocol (TraceRmi) is debugger-scoped, not the static analysis API. GhidraSharp
 fills that gap with a deliberately small, typed surface:
 
 ```
-  ┌─────────────────────┐   gRPC (protobuf)   ┌─────────────────────────────┐
-  │ Const24.GhidraSharp │  ───────────────▶   │ GhidraSharpServer (Java)    │
-  │ C# client (net8/10) │   ◀───────────────  │ Ghidra-as-library, headless │
-  └─────────────────────┘                     └─────────────────────────────┘
+  ┌─────────────────────┐   gRPC (protobuf)  ┌─────────────────────────────┐
+  │ Const24.GhidraSharp │   ──────────────>  │ GhidraSharpServer (Java)    │
+  │ C# client (net8/10) │   <──────────────  │ Ghidra-as-library, headless │
+  └─────────────────────┘                    └─────────────────────────────┘
 ```
 
 * **`proto/ghidrasharp.proto`** — the single source of truth for the wire
