@@ -58,6 +58,7 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
     /// <param name="projectPath">A Ghidra project (<c>.gpr</c>/<c>.rep</c> or its folder); empty to import a binary into a scratch project.</param>
     /// <param name="languageId">Language/compiler-spec id to use when importing a raw binary (ignored when opening an existing program).</param>
     /// <param name="analyze">Run auto-analysis after importing a binary.</param>
+    /// <param name="writable">Open the program for modification (required for renaming). Default is read-only, leaving the source project untouched; changes are never auto-saved.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <exception cref="GhidraException">The server could not open the program.</exception>
     public async Task<ProgramInfo> OpenProgramAsync(
@@ -65,6 +66,7 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
         string projectPath = "",
         string languageId = "",
         bool analyze = true,
+        bool writable = false,
         CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(programPath);
@@ -75,6 +77,7 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
                 ProjectPath = projectPath,
                 LanguageId = languageId,
                 Analyze = analyze,
+                Writable = writable,
             },
             cancellationToken: ct);
 
@@ -187,6 +190,91 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(address);
         var reply = await _client.GetReferencesFromAsync(new ReferencesRequest { Address = address }, cancellationToken: ct);
         return ToReferences(reply);
+    }
+
+    /// <summary>
+    /// List symbols (names) in the program. By default only "real" symbols are
+    /// returned; pass <paramref name="includeDynamic"/> to include Ghidra's
+    /// auto-generated ones (<c>FUN_*</c>, <c>DAT_*</c>, <c>LAB_*</c>).
+    /// </summary>
+    /// <param name="includeDynamic">Include auto-generated (dynamic) symbols.</param>
+    /// <param name="name">If given, return only symbols with this exact name.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="GhidraException">No program is open.</exception>
+    public async Task<IReadOnlyList<GhidraSymbol>> ListSymbolsAsync(
+        bool includeDynamic = false, string? name = null, CancellationToken ct = default)
+    {
+        var reply = await _client.ListSymbolsAsync(
+            new ListSymbolsRequest { IncludeDynamic = includeDynamic, Name = name ?? "" }, cancellationToken: ct);
+        return ToSymbols(reply);
+    }
+
+    /// <summary>Symbols defined at <paramref name="address"/> (hex).</summary>
+    /// <param name="address">The address to look up.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="GhidraException">No program is open, or the address is invalid.</exception>
+    public async Task<IReadOnlyList<GhidraSymbol>> GetSymbolsAtAsync(string address, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(address);
+        var reply = await _client.GetSymbolsAtAsync(new SymbolsAtRequest { Address = address }, cancellationToken: ct);
+        return ToSymbols(reply);
+    }
+
+    /// <summary>
+    /// Rename the primary symbol at <paramref name="address"/>. The program must
+    /// have been opened with <c>writable: true</c>; the change is in-memory and is
+    /// not persisted unless the program is later saved.
+    /// </summary>
+    /// <param name="address">Address of the symbol to rename (hex).</param>
+    /// <param name="newName">The new name.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="GhidraException">No symbol at the address, the program is read-only, or the name is invalid.</exception>
+    public Task RenameSymbolAtAsync(string address, string newName, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(address);
+        ArgumentException.ThrowIfNullOrWhiteSpace(newName);
+        return RenameAsync(new RenameSymbolRequest { Address = address, NewName = newName }, ct);
+    }
+
+    /// <summary>
+    /// Rename the symbol currently named <paramref name="oldName"/>. The program
+    /// must have been opened with <c>writable: true</c>; the change is in-memory.
+    /// </summary>
+    /// <param name="oldName">Current name of the symbol.</param>
+    /// <param name="newName">The new name.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="GhidraException">No such symbol, the program is read-only, or the name is invalid.</exception>
+    public Task RenameSymbolByNameAsync(string oldName, string newName, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(oldName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(newName);
+        return RenameAsync(new RenameSymbolRequest { OldName = oldName, NewName = newName }, ct);
+    }
+
+    private async Task RenameAsync(RenameSymbolRequest request, CancellationToken ct)
+    {
+        var reply = await _client.RenameSymbolAsync(request, cancellationToken: ct);
+        if (!reply.Success)
+        {
+            throw new GhidraException($"RenameSymbol failed: {reply.Error}");
+        }
+    }
+
+    private static IReadOnlyList<GhidraSymbol> ToSymbols(ListSymbolsReply reply)
+    {
+        if (!reply.Success)
+        {
+            throw new GhidraException($"Symbols query failed: {reply.Error}");
+        }
+        return reply.Symbols.Select(s => new GhidraSymbol
+        {
+            Name = s.Name,
+            Address = s.Address,
+            SymbolType = s.SymbolType,
+            Source = s.Source,
+            IsPrimary = s.IsPrimary,
+            IsGlobal = s.IsGlobal,
+        }).ToList();
     }
 
     private static GhidraFunction ToFunction(FunctionInfo f) => new()

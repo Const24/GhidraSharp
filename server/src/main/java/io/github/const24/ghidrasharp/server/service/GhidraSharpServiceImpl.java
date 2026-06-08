@@ -11,9 +11,15 @@ import io.github.const24.ghidrasharp.proto.OpenProgramReply;
 import io.github.const24.ghidrasharp.proto.OpenProgramRequest;
 import io.github.const24.ghidrasharp.proto.PingReply;
 import io.github.const24.ghidrasharp.proto.PingRequest;
+import io.github.const24.ghidrasharp.proto.GhidraSymbol;
+import io.github.const24.ghidrasharp.proto.ListSymbolsReply;
+import io.github.const24.ghidrasharp.proto.ListSymbolsRequest;
 import io.github.const24.ghidrasharp.proto.Reference;
 import io.github.const24.ghidrasharp.proto.ReferencesReply;
 import io.github.const24.ghidrasharp.proto.ReferencesRequest;
+import io.github.const24.ghidrasharp.proto.RenameSymbolReply;
+import io.github.const24.ghidrasharp.proto.RenameSymbolRequest;
+import io.github.const24.ghidrasharp.proto.SymbolsAtRequest;
 import io.github.const24.ghidrasharp.server.engine.GhidraEngine;
 import io.grpc.stub.StreamObserver;
 
@@ -42,7 +48,8 @@ public final class GhidraSharpServiceImpl extends GhidraSharpServiceGrpc.GhidraS
                 request.getProjectPath(),
                 request.getProgramPath(),
                 request.getLanguageId(),
-                request.getAnalyze());
+                request.getAnalyze(),
+                request.getWritable());
 
         OpenProgramReply.Builder reply = OpenProgramReply.newBuilder()
                 .setSuccess(r.success())
@@ -135,6 +142,49 @@ public final class GhidraSharpServiceImpl extends GhidraSharpServiceGrpc.GhidraS
                     .setIsData(ref.data())
                     .setOperandIndex(ref.operandIndex())
                     .setIsPrimary(ref.primary())
+                    .build());
+        }
+
+        observer.onNext(reply.build());
+        observer.onCompleted();
+    }
+
+    @Override
+    public void listSymbols(ListSymbolsRequest request, StreamObserver<ListSymbolsReply> responseObserver) {
+        respondSymbols(engine.listSymbols(request.getIncludeDynamic(), request.getName()), responseObserver);
+    }
+
+    @Override
+    public void getSymbolsAt(SymbolsAtRequest request, StreamObserver<ListSymbolsReply> responseObserver) {
+        respondSymbols(engine.symbolsAt(request.getAddress()), responseObserver);
+    }
+
+    @Override
+    public void renameSymbol(RenameSymbolRequest request, StreamObserver<RenameSymbolReply> responseObserver) {
+        GhidraEngine.RenameResult r = engine.renameSymbol(
+                request.getAddress(), request.getOldName(), request.getNewName());
+        responseObserver.onNext(RenameSymbolReply.newBuilder()
+                .setSuccess(r.success())
+                .setError(nullToEmpty(r.error()))
+                .setAddress(nullToEmpty(r.address()))
+                .setNewName(nullToEmpty(r.newName()))
+                .build());
+        responseObserver.onCompleted();
+    }
+
+    private static void respondSymbols(GhidraEngine.SymbolsResult r, StreamObserver<ListSymbolsReply> observer) {
+        ListSymbolsReply.Builder reply = ListSymbolsReply.newBuilder()
+                .setSuccess(r.success())
+                .setError(nullToEmpty(r.error()));
+
+        for (GhidraEngine.SymbolSummary s : r.symbols()) {
+            reply.addSymbols(GhidraSymbol.newBuilder()
+                    .setName(nullToEmpty(s.name()))
+                    .setAddress(nullToEmpty(s.address()))
+                    .setSymbolType(nullToEmpty(s.symbolType()))
+                    .setSource(nullToEmpty(s.source()))
+                    .setIsPrimary(s.primary())
+                    .setIsGlobal(s.global())
                     .build());
         }
 

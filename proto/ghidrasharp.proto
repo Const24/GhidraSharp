@@ -42,6 +42,16 @@ service GhidraSharpService {
 
   // References (xrefs) originating FROM the given address: "what this points to".
   rpc GetReferencesFrom(ReferencesRequest) returns (ReferencesReply);
+
+  // List symbols (names) in the program, optionally filtered by name.
+  rpc ListSymbols(ListSymbolsRequest) returns (ListSymbolsReply);
+
+  // Symbols defined at a specific address.
+  rpc GetSymbolsAt(SymbolsAtRequest) returns (ListSymbolsReply);
+
+  // Rename a symbol (persist a finding). Requires the program to be opened
+  // writable; the change is in-memory unless the program is later saved.
+  rpc RenameSymbol(RenameSymbolRequest) returns (RenameSymbolReply);
 }
 
 message PingRequest {
@@ -70,6 +80,11 @@ message OpenProgramRequest {
   // Run auto-analysis after import. No-op when opening an already-analyzed
   // program.
   bool analyze = 4;
+
+  // Open the program for modification (required for RenameSymbol). Default is
+  // read-only, which keeps the source project untouched. Changes are never
+  // auto-saved regardless.
+  bool writable = 5;
 }
 
 message OpenProgramReply {
@@ -151,4 +166,43 @@ message ReferencesReply {
   bool success = 1;
   repeated Reference references = 2;
   string error = 3;
+}
+
+message ListSymbolsRequest {
+  bool include_dynamic = 1;  // include Ghidra's auto-generated (dynamic) symbols, e.g. FUN_/DAT_/LAB_
+  string name = 2;           // if set, only symbols with this exact name
+}
+
+message SymbolsAtRequest {
+  string address = 1;  // hex
+}
+
+message GhidraSymbol {
+  string name = 1;
+  string address = 2;
+  string symbol_type = 3;  // "Function", "Label", "Parameter", "Global", ...
+  string source = 4;       // SourceType: "USER_DEFINED", "IMPORTED", "ANALYSIS", "DEFAULT"
+  bool is_primary = 5;
+  bool is_global = 6;
+}
+
+message ListSymbolsReply {
+  bool success = 1;
+  repeated GhidraSymbol symbols = 2;
+  string error = 3;
+}
+
+message RenameSymbolRequest {
+  // Target the primary symbol at this address, OR the symbol currently named
+  // old_name (address wins if both are set).
+  string address = 1;
+  string old_name = 2;
+  string new_name = 3;
+}
+
+message RenameSymbolReply {
+  bool success = 1;
+  string error = 2;
+  string address = 3;
+  string new_name = 4;
 }

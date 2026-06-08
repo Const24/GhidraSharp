@@ -17,7 +17,7 @@ public final class StubEngine implements GhidraEngine {
     }
 
     @Override
-    public OpenResult open(String projectPath, String programPath, String languageId, boolean analyze) {
+    public OpenResult open(String projectPath, String programPath, String languageId, boolean analyze, boolean writable) {
         return OpenResult.failure("OpenProgram not implemented yet (StubEngine)");
     }
 
@@ -45,5 +45,20 @@ public final class StubEngine implements GhidraEngine {
     @Override
     public ReferencesResult referencesFrom(String address) {
         return ReferencesResult.failure("GetReferencesFrom not implemented yet (StubEngine)");
+    }
+
+    @Override
+    public SymbolsResult listSymbols(boolean includeDynamic, String name) {
+        return SymbolsResult.failure("ListSymbols not implemented yet (StubEngine)");
+    }
+
+    @Override
+    public SymbolsResult symbolsAt(String address) {
+        return SymbolsResult.failure("GetSymbolsAt not implemented yet (StubEngine)");
+    }
+
+    @Override
+    public RenameResult renameSymbol(String address, String oldName, String newName) {
+        return RenameResult.failure("RenameSymbol not implemented yet (StubEngine)");
     }
 }

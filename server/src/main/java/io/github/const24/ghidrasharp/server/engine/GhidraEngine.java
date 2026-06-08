@@ -19,7 +19,7 @@ public interface GhidraEngine {
     String ghidraVersion();
 
     /** Open (importing + analyzing if requested) a program and make it current. */
-    OpenResult open(String projectPath, String programPath, String languageId, boolean analyze);
+    OpenResult open(String projectPath, String programPath, String languageId, boolean analyze, boolean writable);
 
     /** Decompile a function identified by entry address (hex) or name. */
     DecompileResult decompile(String address, String name, int timeoutSeconds);
@@ -39,6 +39,15 @@ public interface GhidraEngine {
 
     /** References (xrefs) originating from {@code address} ("what this points to"). */
     ReferencesResult referencesFrom(String address);
+
+    /** List symbols, optionally only those named {@code name}; {@code includeDynamic} adds auto-generated ones. */
+    SymbolsResult listSymbols(boolean includeDynamic, String name);
+
+    /** Symbols defined at {@code address}. */
+    SymbolsResult symbolsAt(String address);
+
+    /** Rename the symbol at {@code address} (or named {@code oldName}) to {@code newName}; needs a writable program. */
+    RenameResult renameSymbol(String address, String oldName, String newName);
 
     /** Result of opening a program. */
     record OpenResult(
@@ -102,6 +111,32 @@ public interface GhidraEngine {
 
         public static ReferencesResult failure(String error) {
             return new ReferencesResult(false, List.of(), error);
+        }
+    }
+
+    /** One symbol (a name bound to an address). */
+    record SymbolSummary(
+            String name,
+            String address,
+            String symbolType,
+            String source,
+            boolean primary,
+            boolean global) {
+    }
+
+    /** Result of a symbols query. */
+    record SymbolsResult(boolean success, List<SymbolSummary> symbols, String error) {
+
+        public static SymbolsResult failure(String error) {
+            return new SymbolsResult(false, List.of(), error);
+        }
+    }
+
+    /** Result of a rename. */
+    record RenameResult(boolean success, String error, String address, String newName) {
+
+        public static RenameResult failure(String error) {
+            return new RenameResult(false, error, "", "");
         }
     }
 }

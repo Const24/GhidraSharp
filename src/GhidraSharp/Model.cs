@@ -124,6 +124,35 @@ public sealed record GhidraReference
     public required bool IsPrimary { get; init; }
 }
 
+/// <summary>
+/// A symbol — a name bound to an address in the program (a function name, a
+/// label, a parameter, a global variable, …). Renaming one is how a finding gets
+/// recorded back onto the program.
+/// </summary>
+public sealed record GhidraSymbol
+{
+    /// <summary>The symbol's name.</summary>
+    public required string Name { get; init; }
+
+    /// <summary>The address the symbol is bound to, as hex.</summary>
+    public required string Address { get; init; }
+
+    /// <summary>Ghidra's symbol type, e.g. <c>"Function"</c>, <c>"Label"</c>, <c>"Parameter"</c>, <c>"Global"</c>.</summary>
+    public required string SymbolType { get; init; }
+
+    /// <summary>
+    /// Where the name came from (Ghidra's <c>SourceType</c>): <c>"USER_DEFINED"</c>,
+    /// <c>"IMPORTED"</c>, <c>"ANALYSIS"</c>, or <c>"DEFAULT"</c> (auto-generated).
+    /// </summary>
+    public required string Source { get; init; }
+
+    /// <summary>Whether this is the primary symbol at its address (the one shown by default).</summary>
+    public required bool IsPrimary { get; init; }
+
+    /// <summary>Whether the symbol lives in the global namespace (vs. a function/local namespace).</summary>
+    public required bool IsGlobal { get; init; }
+}
+
 /// <summary>Error raised when the Ghidra server reports a failure for a request.</summary>
 public sealed class GhidraException : Exception
 {

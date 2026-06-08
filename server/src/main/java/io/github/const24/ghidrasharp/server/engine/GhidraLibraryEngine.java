@@ -14,6 +14,9 @@ import ghidra.program.model.listing.Program;
 import ghidra.program.model.symbol.Reference;
 import ghidra.program.model.symbol.ReferenceManager;
 import ghidra.program.model.symbol.RefType;
+import ghidra.program.model.symbol.SourceType;
+import ghidra.program.model.symbol.Symbol;
+import ghidra.program.model.symbol.SymbolTable;
 import ghidra.util.task.TaskMonitor;
 
 import java.io.File;
@@ -78,14 +81,14 @@ public final class GhidraLibraryEngine implements GhidraEngine {
     }
 
     @Override
-    public OpenResult open(String projectPath, String programPath, String languageId, boolean analyze) {
+    public OpenResult open(String projectPath, String programPath, String languageId, boolean analyze, boolean writable) {
         try {
             ensureInitialized();
             synchronized (lock) {
                 closeCurrent();
 
                 if (projectPath != null && !projectPath.isBlank()) {
-                    openFromProject(projectPath, programPath);
+                    openFromProject(projectPath, programPath, writable);
                 } else if (programPath != null && new File(programPath).isFile()) {
                     importBinary(new File(programPath), analyze);
                 } else {
@@ -251,9 +254,112 @@ public final class GhidraLibraryEngine implements GhidraEngine {
         }
     }
 
+    @Override
+    public SymbolsResult listSymbols(boolean includeDynamic, String name) {
+        try {
+            synchronized (lock) {
+                if (program == null) {
+                    return SymbolsResult.failure("no program open; call OpenProgram first");
+                }
+                SymbolTable symbols = program.getSymbolTable();
+                Iterable<Symbol> found = (name != null && !name.isBlank())
+                        ? symbols.getSymbols(name)
+                        : symbols.getAllSymbols(includeDynamic);
+                List<SymbolSummary> out = new ArrayList<>();
+                for (Symbol s : found) {
+                    out.add(toSummary(s));
+                }
+                return new SymbolsResult(true, out, "");
+            }
+        } catch (Exception e) {
+            return SymbolsResult.failure(describe(e));
+        }
+    }
+
+    @Override
+    public SymbolsResult symbolsAt(String address) {
+        try {
+            synchronized (lock) {
+                if (program == null) {
+                    return SymbolsResult.failure("no program open; call OpenProgram first");
+                }
+                Address addr = parseAddress(address);
+                if (addr == null) {
+                    return SymbolsResult.failure("bad address: " + address);
+                }
+                List<SymbolSummary> out = new ArrayList<>();
+                for (Symbol s : program.getSymbolTable().getSymbols(addr)) {
+                    out.add(toSummary(s));
+                }
+                return new SymbolsResult(true, out, "");
+            }
+        } catch (Exception e) {
+            return SymbolsResult.failure(describe(e));
+        }
+    }
+
+    @Override
+    public RenameResult renameSymbol(String address, String oldName, String newName) {
+        try {
+            synchronized (lock) {
+                if (program == null) {
+                    return RenameResult.failure("no program open; call OpenProgram first");
+                }
+                if (newName == null || newName.isBlank()) {
+                    return RenameResult.failure("new_name is required");
+                }
+
+                SymbolTable symbols = program.getSymbolTable();
+                Symbol target = null;
+                if (address != null && !address.isBlank()) {
+                    Address addr = parseAddress(address);
+                    if (addr == null) {
+                        return RenameResult.failure("bad address: " + address);
+                    }
+                    target = symbols.getPrimarySymbol(addr);
+                    if (target == null) {
+                        return RenameResult.failure("no symbol at " + address);
+                    }
+                } else if (oldName != null && !oldName.isBlank()) {
+                    for (Symbol s : symbols.getSymbols(oldName)) {
+                        target = s;
+                        break;
+                    }
+                    if (target == null) {
+                        return RenameResult.failure("no symbol named " + oldName);
+                    }
+                } else {
+                    return RenameResult.failure("provide an address or old_name");
+                }
+
+                int tx = program.startTransaction("GhidraSharp rename");
+                boolean committed = false;
+                try {
+                    target.setName(newName, SourceType.USER_DEFINED);
+                    committed = true;
+                } finally {
+                    program.endTransaction(tx, committed);
+                }
+                return new RenameResult(true, "", target.getAddress().toString(), target.getName());
+            }
+        } catch (Exception e) {
+            return RenameResult.failure(describe(e));
+        }
+    }
+
+    private static SymbolSummary toSummary(Symbol s) {
+        return new SymbolSummary(
+                s.getName(),
+                s.getAddress().toString(),
+                String.valueOf(s.getSymbolType()),
+                String.valueOf(s.getSource()),
+                s.isPrimary(),
+                s.isGlobal());
+    }
+
     // --- open helpers -------------------------------------------------------
 
-    private void openFromProject(String projectPath, String desiredProgram) throws Exception {
+    private void openFromProject(String projectPath, String desiredProgram, boolean writable) throws Exception {
         Path path = Path.of(projectPath);
         String projectDir;
         String projectName;
@@ -274,7 +380,7 @@ public final class GhidraLibraryEngine implements GhidraEngine {
         }
 
         project = GhidraProject.openProject(projectDir, projectName, false);
-        program = openProgramFromProject(project, desiredProgram);
+        program = openProgramFromProject(project, desiredProgram, writable);
     }
 
     private static File findProjectFile(File dir) {
@@ -282,7 +388,7 @@ public final class GhidraLibraryEngine implements GhidraEngine {
         return (matches != null && matches.length > 0) ? matches[0] : null;
     }
 
-    private Program openProgramFromProject(GhidraProject project, String desiredProgram) throws Exception {
+    private Program openProgramFromProject(GhidraProject project, String desiredProgram, boolean writable) throws Exception {
         DomainFolder root = project.getRootFolder();
         DomainFile chosen = null;
         for (DomainFile df : root.getFiles()) {
@@ -300,7 +406,7 @@ public final class GhidraLibraryEngine implements GhidraEngine {
         if (chosen == null) {
             throw new IllegalStateException("no Program found in project root folder");
         }
-        return project.openProgram(root.getPathname(), chosen.getName(), true /* read-only */);
+        return project.openProgram(root.getPathname(), chosen.getName(), !writable /* readOnly */);
     }
 
     private void importBinary(File file, boolean analyze) throws Exception {

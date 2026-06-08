@@ -65,7 +65,8 @@ static async Task<int> Run(GhidraClient ghidra, Dictionary<string, string> opts,
         program = await ghidra.OpenProgramAsync(
             rom,
             projectPath: opts.GetValueOrDefault("project", ""),
-            languageId: opts.GetValueOrDefault("lang", ""));
+            languageId: opts.GetValueOrDefault("lang", ""),
+            writable: opts.ContainsKey("writable"));
     }
     catch (GhidraException ex)
     {
@@ -128,6 +129,32 @@ static async Task<int> Run(GhidraClient ghidra, Dictionary<string, string> opts,
 
         var callSites = to.Where(r => r.IsCall).Select(r => r.FromAddress).ToList();
         Console.WriteLine($"[xrefs] called from {callSites.Count} sites: {string.Join(", ", callSites.Take(8))}");
+    }
+
+    if (opts.ContainsKey("symbols"))
+    {
+        var syms = await ghidra.ListSymbolsAsync(includeDynamic: false);
+        Console.WriteLine($"[symbols] {syms.Count} non-dynamic symbols");
+        foreach (var g in syms.GroupBy(s => s.SymbolType).OrderByDescending(g => g.Count()))
+        {
+            Console.WriteLine($"  {g.Count(),5}x {g.Key}");
+        }
+    }
+
+    if (opts.TryGetValue("symbols-at", out var symAddr))
+    {
+        var at = await ghidra.GetSymbolsAtAsync(symAddr);
+        Console.WriteLine($"[symbols-at {symAddr}] {at.Count}:");
+        foreach (var s in at) Console.WriteLine($"  {s.Name}  [{s.SymbolType}, {s.Source}{(s.IsPrimary ? ", primary" : "")}]");
+    }
+
+    if (opts.TryGetValue("rename-at", out var renAddr) && opts.TryGetValue("to", out var newName))
+    {
+        var before = await ghidra.GetSymbolsAtAsync(renAddr);
+        Console.WriteLine($"[rename] {renAddr}: \"{before.FirstOrDefault()?.Name}\" -> \"{newName}\"");
+        await ghidra.RenameSymbolAtAsync(renAddr, newName);
+        var after = await ghidra.GetSymbolsAtAsync(renAddr);
+        Console.WriteLine($"[rename] now: \"{after.FirstOrDefault()?.Name}\" (in-memory; not saved)");
     }
 
     if (opts.ContainsKey("decompile-all"))
