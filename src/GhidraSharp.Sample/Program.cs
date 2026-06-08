@@ -46,7 +46,7 @@ static async Task<int> Run(GhidraClient ghidra, Dictionary<string, string> opts,
     try
     {
         var info = await ghidra.PingAsync();
-        Console.WriteLine($"[ping] server up, Ghidra {info.GhidraVersion}");
+        Console.WriteLine($"[ping] server up — Ghidra {info.GhidraVersion}, server {info.ServerVersion}");
     }
     catch (Exception ex)
     {
