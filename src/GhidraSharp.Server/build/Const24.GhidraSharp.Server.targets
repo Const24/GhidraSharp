@@ -1,0 +1,17 @@
+<Project>
+
+  <!--
+    Imported automatically into the consumer's build. Copies the bundled
+    GhidraSharpServer into the app's output under "ghidrasharp-server/", so it sits
+    next to the app (and ships with `dotnet publish`); GhidraServer.StartAsync()
+    auto-detects it there.
+  -->
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)..\ghidrasharp-server\**\*"
+          CopyToOutputDirectory="PreserveNewest"
+          LinkBase="ghidrasharp-server"
+          Pack="false"
+          Visible="false" />
+  </ItemGroup>
+
+</Project>

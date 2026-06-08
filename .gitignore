@@ -10,7 +10,6 @@ artifacts/
 .gradle/
 server/build/
 server/.gradle/
-build/
 
 # ---- Ghidra ----
 # Scratch projects the server may create while testing.
