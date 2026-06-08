@@ -33,3 +33,7 @@ bench/*_dump.txt
 
 # ---- Parity harness output ----
 bench/out/
+
+# ---- Python ----
+__pycache__/
+*.pyc
