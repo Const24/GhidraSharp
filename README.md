@@ -32,7 +32,7 @@ fills that gap with a deliberately small, typed surface:
 
 * **.NET 8 or later** — the client multi-targets `net8.0` and `net10.0`.
 * **JDK 21 or later** — to build and run the server (Ghidra 12.1 requires 21+).
-* **Ghidra 12.1** — point `GHIDRA_INSTALL_DIR` at the install.
+* **Ghidra 12.1 or later** — point `GHIDRA_INSTALL_DIR` at the install (built and tested against 12.1).
 
 ## Install
 

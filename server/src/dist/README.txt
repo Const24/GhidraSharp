@@ -6,7 +6,7 @@ Const24.GhidraSharp .NET client (https://github.com/Const24/GhidraSharp).
 
 Requirements
   - Java (JDK) 21 or later on PATH
-  - Ghidra 12.1 installed; set GHIDRA_INSTALL_DIR to point at it
+  - Ghidra 12.1 or later installed; set GHIDRA_INSTALL_DIR to point at it
 
 Run (Windows / PowerShell):
   $env:GHIDRA_INSTALL_DIR = "C:\ghidra_12.1_PUBLIC"
