@@ -1,0 +1,143 @@
+using System.Diagnostics;
+using System.Text;
+using System.Text.Json;
+using Const24.GhidraSharp;
+
+// GhidraSharp.Parity <project.gpr|dir> <out-dir>
+//
+// Extracts a canonical dump of every bridged RPC (via GhidraClient) for a
+// face-to-face comparison with pyghidra (see ../pyghidra_extract.py, which emits
+// the identical format from the same Ghidra calls). Also records per-capability
+// timing. The two dumps must be byte-for-byte equal.
+//
+// Env: GHIDRASHARP_ARGFILE (java @argfile; defaults to server/build/ghidrasharp-java.args).
+
+if (args.Length < 2)
+{
+    Console.Error.WriteLine("usage: GhidraSharp.Parity <project.gpr|dir> <out-dir>");
+    return 2;
+}
+
+var project = args[0];
+var outDir = args[1];
+Directory.CreateDirectory(outDir);
+
+await using var server = await GhidraServer.StartAsync(new GhidraServerOptions
+{
+    ArgFile = Environment.GetEnvironmentVariable("GHIDRASHARP_ARGFILE") ?? "server/build/ghidrasharp-java.args",
+});
+var g = server.Client;
+
+var info = await g.OpenProgramAsync(Path.GetFileNameWithoutExtension(project), projectPath: project);
+Console.WriteLine($"[parity/cs] {info.Name} ({info.LanguageId}) functions={info.FunctionCount}");
+
+var timings = new Dictionary<string, object>();
+var funcs = new List<GhidraFunction>();
+
+await Time("functions", async () =>
+{
+    funcs = (await g.ListFunctionsAsync(includeCalls: true))
+        .OrderBy(f => f.EntryPoint, StringComparer.Ordinal).ToList();
+    var sb = new StringBuilder();
+    foreach (var f in funcs)
+    {
+        var calls = string.Join(";", f.Calls.OrderBy(c => c, StringComparer.Ordinal));
+        sb.Append($"{f.EntryPoint}\t{f.Name}\t{f.Size}\t{f.ParameterCount}\t{Bool(f.IsThunk)}\t{calls}\n");
+    }
+    Write("functions.txt", sb);
+    return funcs.Count;
+});
+
+await Time("symbols", async () =>
+{
+    var syms = (await g.ListSymbolsAsync(includeDynamic: false))
+        .OrderBy(s => s.Address, StringComparer.Ordinal)
+        .ThenBy(s => s.Name, StringComparer.Ordinal)
+        .ThenBy(s => s.SymbolType, StringComparer.Ordinal).ToList();
+    var sb = new StringBuilder();
+    foreach (var s in syms)
+    {
+        sb.Append($"{s.Address}\t{s.Name}\t{s.SymbolType}\t{s.Source}\t{Bool(s.IsPrimary)}\t{Bool(s.IsGlobal)}\n");
+    }
+    Write("symbols.txt", sb);
+    return syms.Count;
+});
+
+await Time("decompile", async () =>
+{
+    var results = new List<Decompilation>();
+    await foreach (var d in g.DecompileManyAsync(all: true))
+    {
+        if (d.IsSuccess) results.Add(d);
+    }
+    results.Sort((a, b) => string.CompareOrdinal(a.EntryPoint, b.EntryPoint));
+    var sb = new StringBuilder();
+    foreach (var d in results) sb.Append($">>> {d.EntryPoint}\n{d.CCode}");
+    Write("decompile.txt", sb);
+    return results.Count;
+});
+
+await Time("instructions", async () =>
+{
+    var sb = new StringBuilder();
+    var n = 0;
+    foreach (var f in funcs)
+    {
+        foreach (var ins in await g.GetInstructionsAsync(f.EntryPoint))
+        {
+            sb.Append($"{ins.Address}\t{ins.Mnemonic}\t{ins.Representation}\n");
+            n++;
+        }
+    }
+    Write("instructions.txt", sb);
+    return n;
+});
+
+await Time("xrefs_to", async () =>
+{
+    var sb = new StringBuilder();
+    var n = 0;
+    foreach (var f in funcs)
+    {
+        var refs = (await g.GetReferencesToAsync(f.EntryPoint))
+            .OrderBy(r => r.FromAddress, StringComparer.Ordinal)
+            .ThenBy(r => r.ReferenceType, StringComparer.Ordinal);
+        foreach (var r in refs)
+        {
+            sb.Append($"{r.ToAddress}\t{r.FromAddress}\t{r.ReferenceType}\n");
+            n++;
+        }
+    }
+    Write("xrefs_to.txt", sb);
+    return n;
+});
+
+await Time("bytes", async () =>
+{
+    var sb = new StringBuilder();
+    foreach (var f in funcs)
+    {
+        var data = await g.ReadBytesAsync(f.EntryPoint, 16);
+        sb.Append($"{f.EntryPoint}\t{Convert.ToHexString(data)}\n");
+    }
+    Write("bytes.txt", sb);
+    return funcs.Count;
+});
+
+File.WriteAllText(Path.Combine(outDir, "timings.json"),
+    JsonSerializer.Serialize(timings, new JsonSerializerOptions { WriteIndented = true }));
+Console.WriteLine($"[parity/cs] done -> {outDir}");
+return 0;
+
+async Task Time(string name, Func<Task<int>> body)
+{
+    var sw = Stopwatch.StartNew();
+    var count = await body();
+    sw.Stop();
+    timings[name] = new Dictionary<string, object> { ["ms"] = sw.ElapsedMilliseconds, ["count"] = count };
+    Console.WriteLine($"[cs] {name}: {count} in {sw.ElapsedMilliseconds} ms");
+}
+
+void Write(string file, StringBuilder sb) => File.WriteAllText(Path.Combine(outDir, file), sb.ToString());
+
+static string Bool(bool b) => b ? "true" : "false";

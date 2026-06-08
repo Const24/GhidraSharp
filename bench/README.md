@@ -1,38 +1,32 @@
-# Benchmarks
+# Benchmarks & parity tests
 
-Face-to-face validation of the GhidraSharp bridge against **pyghidra**
-(in-process), on the same already-analyzed Ghidra project. Both sides drive the
-same Ghidra the same way (open the existing `.rep` read-only, `DecompInterface`,
-`getFunctions(true)`, `getC()`), so any difference would be the bridge's fault.
+Proof that GhidraSharp is **not worse than official pyghidra** — same correctness,
+comparable speed — across the whole bridged API, not just decompilation.
 
-## Running
+## The idea (why this is a strong test)
 
-```sh
-# 1) Bridge side: decompile every function, dump the C, report throughput
-dotnet run --project src/GhidraSharp.Sample -- \
-  --spawn --project <path/to/PROJ.gpr> --rom <PROGRAM> \
-  --decompile-all --dump bench/bridge_dump.txt
+GhidraSharp and pyghidra drive the **same Ghidra** with the **same calls**. So for
+any operation the bridge's output *must* equal pyghidra's, byte for byte. Anything
+else is a bridge bug. That makes this both:
 
-# 2) pyghidra side: same project, same dump format
-#    (needs GHIDRA_INSTALL_DIR + JAVA_HOME, same as the bridge)
-python bench/pyghidra_decompile_all.py <path/to/PROJ.gpr> bench/pyghidra_dump.txt
+- a **correctness test** — assert the two dumps are identical (CI gate: non-zero exit on mismatch), and
+- a **benchmark** — time each side doing the same work.
 
-# 3) Compare
-sha256sum bench/bridge_dump.txt bench/pyghidra_dump.txt
-diff -q bench/bridge_dump.txt bench/pyghidra_dump.txt   # empty => identical
+Two extractors emit an identical canonical dump per RPC:
+
+- [`GhidraSharp.Parity`](GhidraSharp.Parity/) — through the bridge (`GhidraClient`, auto-spawns the server).
+- [`pyghidra_extract.py`](pyghidra_extract.py) — through pyghidra in-process, mirroring the server's engine.
+
+[`compare.py`](compare.py) diffs them by SHA-256 and writes [`REPORT.md`](REPORT.md).
+
+Covered: `functions`, `symbols`, `decompile`, `instructions`, `xrefs_to`, `bytes`.
+
+## Run
+
+```pwsh
+pwsh bench/run.ps1 <path/to/PROJECT.gpr>
 ```
 
-## Result (Ghidra 12.1, SH-2A corpus ROM A2WC000E, 2076 functions)
-
-| | functions | time | throughput | dump |
-|---|---|---|---|---|
-| pyghidra (in-process) | 2076 ok / 0 fail | ~11.9 s | ~174 func/s | 1,867,935 B |
-| GhidraSharp (gRPC bridge) | 2076 ok / 0 fail | ~11.7 s | ~177 func/s | 1,867,935 B |
-
-* **Correctness:** the two dumps are **byte-for-byte identical** (same SHA-256).
-  The bridge is a faithful conduit to Ghidra — zero divergence across ~1.9 MB of C.
-* **Performance:** **equal** within noise (the native decompiler dominates;
-  the gRPC round trip is amortized by batching the whole program into one
-  server-streaming call, so per-call IPC overhead disappears).
-
-Dumps (`*_dump.txt`) are git-ignored; regenerate with the commands above.
+Needs `GHIDRA_INSTALL_DIR` and `JAVA_HOME`, plus `pyghidra` for the baseline.
+The result lands in [`REPORT.md`](REPORT.md) (committed so visitors see it without
+running anything). Dumps under `bench/out/` are git-ignored.

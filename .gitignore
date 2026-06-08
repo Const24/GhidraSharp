@@ -30,3 +30,6 @@ Thumbs.db
 
 # ---- Benchmark dumps ----
 bench/*_dump.txt
+
+# ---- Parity harness output ----
+bench/out/

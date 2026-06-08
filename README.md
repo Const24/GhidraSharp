@@ -46,8 +46,9 @@ The public C# API exposes only hand-written, documented result types
 (`ProgramInfo`, `GhidraFunction`, `Decompilation`, `GhidraReference`, …); the
 generated gRPC wire types are internal. Names follow Ghidra's own terms so they
 read right to a Ghidra user, with XML docs that also explain each concept to a
-.NET developer new to Ghidra. Validated byte-for-byte against pyghidra — see
-[bench/](bench/).
+.NET developer new to Ghidra. Validated **byte-for-byte against pyghidra across
+the whole API** (functions, symbols, decompilation, instructions, xrefs, bytes)
+at comparable speed — see the [parity report](bench/REPORT.md) and [bench/](bench/).
 
 ## Building the client
 

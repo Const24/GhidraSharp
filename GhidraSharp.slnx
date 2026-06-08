@@ -3,4 +3,7 @@
     <Project Path="src/GhidraSharp/GhidraSharp.csproj" />
     <Project Path="src/GhidraSharp.Sample/GhidraSharp.Sample.csproj" />
   </Folder>
+  <Folder Name="/bench/">
+    <Project Path="bench/GhidraSharp.Parity/GhidraSharp.Parity.csproj" />
+  </Folder>
 </Solution>
