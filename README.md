@@ -34,25 +34,38 @@ fills that gap with a deliberately small, typed surface:
 
 ## Quickstart
 
-Drive a running server with the typed client:
+From a raw firmware dump (`.bin`) to its decompiled functions — no prior Ghidra
+knowledge required:
 
 ```csharp
 using Const24.GhidraSharp;
 
-// connect to a GhidraSharpServer (see "Running the server" below)
+// connect to a running server (see "Running the server" below)
 using var ghidra = GhidraClient.Connect("http://127.0.0.1:50080");
 
-// open an analyzed project — or CreateProjectAsync(...) to import a fresh binary
-await ghidra.OpenProgramAsync("firmware", projectPath: @"C:\proj\firmware.gpr");
+// import the binary, auto-analyze it, and save it as a project.
+// languageId is the target chip's processor — here Renesas SH-2A (Subaru ECUs).
+var program = await ghidra.CreateProjectAsync(
+    binaryPath:      @"C:\firmware\ecu.bin",
+    projectLocation: @"C:\work\ghidra-projects",
+    projectName:     "ecu",
+    languageId:      "SuperH:BE:32:SH-2A");
 
-// query with plain C# / LINQ
-foreach (var fn in await ghidra.ListFunctionsAsync())
-    Console.WriteLine($"{fn.EntryPoint}  {fn.Name}");
+Console.WriteLine($"{program.FunctionCount} functions found");
 
-// decompile to C
-var dec = await ghidra.DecompileAtAsync("0x00001000");
+// list every function Ghidra recovered
+var functions = await ghidra.ListFunctionsAsync();
+foreach (var fn in functions)
+    Console.WriteLine($"  {fn.EntryPoint}  {fn.Name}");
+
+// decompile the first one to C
+var dec = await ghidra.DecompileAtAsync(functions[0].EntryPoint);
 Console.WriteLine(dec.CCode);
 ```
+
+`languageId` is the only Ghidra-specific input: pick the processor that matches
+your chip — e.g. `SuperH:BE:32:SH-2A`, `ARM:LE:32:v7`, `x86:LE:64:default`.
+Already have an analyzed Ghidra project? Open it with `OpenProgramAsync(...)`.
 
 Prefer the client to own the process? `GhidraServer.StartAsync(...)` spawns the
 server, hands you a connected `Client`, and stops it on dispose.
