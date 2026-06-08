@@ -105,6 +105,7 @@ public sealed class IntegrationFixture : IAsyncLifetime
 // key off addresses, never names — so the single mutating test (rename) can't affect
 // the others regardless of run order. xUnit also runs a class's tests sequentially.
 [Trait("Category", "Integration")]
+[Collection("Ghidra servers")]
 public sealed class EngineIntegrationTests(IntegrationFixture fixture) : IClassFixture<IntegrationFixture>
 {
     private GhidraClient Client => fixture.Client;

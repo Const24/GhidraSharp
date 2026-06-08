@@ -124,6 +124,27 @@ It listens on `127.0.0.1:50080` and runs until you stop it (Ctrl+C, or close the
 terminal — it shuts down gracefully; there is no idle timeout). Building from source
 instead? `cd server && ./gradlew writeServerArgs`, then `java @build/ghidrasharp-java.args`.
 
+### Parallel batch — `GhidraServerPool`
+
+A single server is one-program-at-a-time. To chew through a whole corpus, run a pool
+of N independent servers (N JVMs) and hand it the work: each item runs on one server,
+per-item failures are captured, and a crashed server is restarted so the batch finishes.
+
+```csharp
+await using var pool = await GhidraServerPool.StartAsync(size: 8, new GhidraServerOptions());
+
+var results = await pool.ForEachAsync(romPaths, async (ghidra, rom, ct) =>
+{
+    await ghidra.CreateProjectAsync(rom, projectDir, Path.GetFileNameWithoutExtension(rom), ct: ct);
+    // ... decompile / extract on this server
+}, progress: new Progress<PoolProgress>(p => Console.WriteLine($"{p.Done}/{p.Total} ({p.Failed} failed)")));
+
+foreach (var f in results.Where(r => !r.Ok))
+    Console.WriteLine($"FAILED {f.Item}: {f.Error?.Message}");
+```
+
+Sizing: ~1.5–2 GB per JVM with Ghidra loaded → ~24 on a 64 GB box.
+
 ## Status
 
 Working bridge. The surface grows one RPC at a time as consumers need it.

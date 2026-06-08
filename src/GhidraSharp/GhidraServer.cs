@@ -65,6 +65,16 @@ public sealed class GhidraServer : IAsyncDisposable, IDisposable
     /// <summary>The port the server is listening on.</summary>
     public int Port { get; }
 
+    /// <summary>Whether the underlying server process has exited (the pool uses this to detect a crash).</summary>
+    public bool HasExited
+    {
+        get
+        {
+            try { return _process.HasExited; }
+            catch { return true; }
+        }
+    }
+
     /// <summary>Launch the server and return once it is accepting connections.</summary>
     public static async Task<GhidraServer> StartAsync(GhidraServerOptions options, CancellationToken ct = default)
     {
@@ -282,6 +292,13 @@ public sealed class GhidraServer : IAsyncDisposable, IDisposable
         {
             log.AppendLine(line);
         }
+    }
+
+    /// <summary>Force-kill the server process and wait for it to exit (test hook to simulate a crash).</summary>
+    internal void Kill()
+    {
+        TryKill(_process);
+        try { _process.WaitForExit(5000); } catch { /* best effort */ }
     }
 
     private static void TryKill(Process process)
