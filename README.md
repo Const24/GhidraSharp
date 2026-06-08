@@ -47,7 +47,7 @@ using var ghidra = GhidraClient.Connect("http://127.0.0.1:50080");
 // languageId is the target chip's processor — here Renesas SH-2A (Subaru ECUs).
 var program = await ghidra.CreateProjectAsync(
     binaryPath:      @"C:\firmware\ecu.bin",
-    projectLocation: @"C:\work\ghidra-projects",
+    projectLocation: @"C:\dev\re\projects",
     projectName:     "ecu",
     languageId:      "SuperH:BE:32:SH-2A");
 
