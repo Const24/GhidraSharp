@@ -37,11 +37,22 @@ The bridge only forwards a Ghidra language id, so it is processor-agnostic.
 Parity was verified byte-for-byte against pyghidra on three very different ISAs
 (build a project from the binary with `--create-project`, then run both extractors):
 
-| Target | Result |
-| --- | --- |
-| SuperH **SH-2A** (Subaru firmware) | 8/8 identical |
-| **JVM** bytecode (`.class`) | 8/8 identical |
-| **x86-64** (PE) | 7/8 identical — see note |
+| Target | Ghidra language | Result |
+| --- | --- | --- |
+| SuperH **SH-2A** (Subaru firmware) | `SuperH:BE:32:SH-2A` | 8/8 identical |
+| **JVM** bytecode (`.class`) | `JVM:BE:32` | 8/8 identical |
+| **ARM64** | `AARCH64:LE:64:v8A` | 8/8 identical |
+| **ARM64 big-endian** | `AARCH64:BE:64:v8A` | 8/8 identical |
+| **ARM32** | `ARM:LE:32:v8` | 8/8 identical |
+| **RISC-V 64** | `RISCV:LE:64` | 8/8 identical |
+| **x86-32** | `x86:LE:32` | 8/8 identical |
+| **x86-64** (PE) | `x86:LE:64` | 7/8 identical — see note |
+
+The RISC/x86-32 objects are built from [`multiarch_sample.c`](multiarch_sample.c)
+with `clang -c -target <triple>` (no downloads, no sysroot — relocatable ELF
+objects Ghidra reads directly); Ghidra auto-detects the language from the ELF
+header. Coverage spans little- and big-endian, 32- and 64-bit, CISC, RISC, and a
+stack VM.
 
 **Note on the x86-64 decompile:** one function out of 2288 decompiles
 differently. This is **Ghidra's own decompiler being nondeterministic** there,
