@@ -58,6 +58,11 @@ final class FakeEngine implements GhidraEngine {
         return references();
     }
 
+    @Override
+    public ReferencesResult functionReferences(String address) {
+        return references();
+    }
+
     private static ReferencesResult references() {
         return new ReferencesResult(true,
                 List.of(new ReferenceSummary("00001100", "00001000", "UNCONDITIONAL_CALL", true, false, false, 0, true)), "");
@@ -131,6 +136,13 @@ final class FakeEngine implements GhidraEngine {
     @Override
     public SaveResult saveProgram() {
         return new SaveResult(true, "");
+    }
+
+    int closeProgramCalls;
+
+    @Override
+    public void closeProgram() {
+        closeProgramCalls++;
     }
 
     @Override

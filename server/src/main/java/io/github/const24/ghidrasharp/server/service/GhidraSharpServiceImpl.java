@@ -54,6 +54,7 @@ import io.github.const24.ghidrasharp.proto.RunScriptReply;
 import io.github.const24.ghidrasharp.proto.RunScriptRequest;
 import io.github.const24.ghidrasharp.proto.SaveProgramReply;
 import io.github.const24.ghidrasharp.proto.SaveProgramRequest;
+import io.github.const24.ghidrasharp.proto.CloseProgramRequest;
 import io.github.const24.ghidrasharp.proto.RenameSymbolReply;
 import io.github.const24.ghidrasharp.proto.RenameSymbolRequest;
 import io.github.const24.ghidrasharp.proto.SymbolsAtRequest;
@@ -171,6 +172,11 @@ public final class GhidraSharpServiceImpl extends GhidraSharpServiceGrpc.GhidraS
     @Override
     public void getReferencesFrom(ReferencesRequest request, StreamObserver<ReferencesReply> responseObserver) {
         respondReferences(engine.referencesFrom(request.getAddress()), responseObserver);
+    }
+
+    @Override
+    public void getFunctionReferences(ReferencesRequest request, StreamObserver<ReferencesReply> responseObserver) {
+        respondReferences(engine.functionReferences(request.getAddress()), responseObserver);
     }
 
     private static void respondReferences(GhidraEngine.ReferencesResult r, StreamObserver<ReferencesReply> observer) {
@@ -423,6 +429,13 @@ public final class GhidraSharpServiceImpl extends GhidraSharpServiceGrpc.GhidraS
                 .setSuccess(r.success())
                 .setError(nullToEmpty(r.error()))
                 .build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void closeProgram(CloseProgramRequest request, StreamObserver<AckReply> responseObserver) {
+        engine.closeProgram();
+        responseObserver.onNext(AckReply.newBuilder().setSuccess(true).build());
         responseObserver.onCompleted();
     }
 

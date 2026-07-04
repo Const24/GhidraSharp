@@ -254,6 +254,44 @@ public final class GhidraLibraryEngine implements GhidraEngine {
         return references(address, false);
     }
 
+    @Override
+    public ReferencesResult functionReferences(String address) {
+        try {
+            synchronized (lock) {
+                if (program == null) {
+                    return ReferencesResult.failure("no program open; call OpenProgram first");
+                }
+                Address addr = parseAddress(address);
+                if (addr == null) {
+                    return ReferencesResult.failure("bad address: " + address);
+                }
+                Function fn = program.getFunctionManager().getFunctionContaining(addr);
+                if (fn == null) {
+                    return ReferencesResult.failure("no function at " + address);
+                }
+                ReferenceManager refs = program.getReferenceManager();
+                List<ReferenceSummary> out = new ArrayList<>();
+                for (Address a : fn.getBody().getAddresses(true)) {
+                    for (Reference ref : refs.getReferencesFrom(a)) {
+                        RefType type = ref.getReferenceType();
+                        out.add(new ReferenceSummary(
+                                ref.getFromAddress().toString(),
+                                ref.getToAddress().toString(),
+                                type.getName(),
+                                type.isCall(),
+                                type.isJump(),
+                                type.isData(),
+                                ref.getOperandIndex(),
+                                ref.isPrimary()));
+                    }
+                }
+                return new ReferencesResult(true, out, "");
+            }
+        } catch (Exception e) {
+            return ReferencesResult.failure(describe(e));
+        }
+    }
+
     private ReferencesResult references(String address, boolean to) {
         try {
             synchronized (lock) {
@@ -1079,8 +1117,9 @@ public final class GhidraLibraryEngine implements GhidraEngine {
 
     private Function resolveFunction(String address, String name) {
         if (address != null && !address.isBlank()) {
-            Address entry = parseAddress(address);
-            return entry == null ? null : program.getFunctionManager().getFunctionAt(entry);
+            Address at = parseAddress(address);
+            // Containing, not entry-only: a mid-function address resolves to its function.
+            return at == null ? null : program.getFunctionManager().getFunctionContaining(at);
         }
         if (name != null && !name.isBlank()) {
             for (Function fn : program.getFunctionManager().getFunctions(true)) {
@@ -1124,6 +1163,13 @@ public final class GhidraLibraryEngine implements GhidraEngine {
             decomp.dispose();
             decomp = null;
             throw new IllegalStateException("decompiler failed to open program: " + msg);
+        }
+    }
+
+    @Override
+    public void closeProgram() {
+        synchronized (lock) {
+            closeCurrent();
         }
     }
 

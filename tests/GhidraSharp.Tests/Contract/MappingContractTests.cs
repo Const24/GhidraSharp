@@ -102,6 +102,21 @@ public sealed class MappingContractTests(HappyServerFixture fixture) : IClassFix
     }
 
     [Fact]
+    public async Task GetFunctionReferences_maps_xrefs()
+    {
+        var refs = await Client.GetFunctionReferencesAsync("0x1000");
+        var r = Assert.Single(refs);
+        Assert.Equal("00001100", r.FromAddress);
+        Assert.True(r.IsCall);
+    }
+
+    [Fact]
+    public async Task CloseProgram_succeeds()
+    {
+        await Client.CloseProgramAsync(); // HappyFake returns success -> must not throw
+    }
+
+    [Fact]
     public async Task Symbols_map()
     {
         var s = Assert.Single(await Client.ListSymbolsAsync());

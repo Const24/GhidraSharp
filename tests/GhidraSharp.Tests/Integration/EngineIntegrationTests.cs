@@ -194,4 +194,22 @@ public sealed class EngineIntegrationTests(IntegrationFixture fixture) : IClassF
         var dec = await Client.DecompileAtAsync(fns[0].EntryPoint);
         Assert.True(dec.IsSuccess);
     }
+
+    [SkippableFact]
+    public async Task GetFunctionReferences_returns_a_functions_outgoing_refs()
+    {
+        Skip.IfNot(fixture.Available, fixture.SkipReason);
+        var fns = await Client.ListFunctionsAsync();
+
+        var anyWithRefs = false;
+        foreach (var fn in fns)
+        {
+            if ((await Client.GetFunctionReferencesAsync(fn.EntryPoint)).Count > 0)
+            {
+                anyWithRefs = true;
+                break;
+            }
+        }
+        Assert.True(anyWithRefs); // e.g. main() references add()/println -> outgoing refs
+    }
 }

@@ -49,6 +49,11 @@ public final class StubEngine implements GhidraEngine {
     }
 
     @Override
+    public ReferencesResult functionReferences(String address) {
+        return ReferencesResult.failure("GetFunctionReferences not implemented yet (StubEngine)");
+    }
+
+    @Override
     public SymbolsResult listSymbols(boolean includeDynamic, String name) {
         return SymbolsResult.failure("ListSymbols not implemented yet (StubEngine)");
     }
@@ -107,6 +112,11 @@ public final class StubEngine implements GhidraEngine {
     @Override
     public SaveResult saveProgram() {
         return SaveResult.failure("SaveProgram not implemented yet (StubEngine)");
+    }
+
+    @Override
+    public void closeProgram() {
+        // nothing is ever open
     }
 
     @Override

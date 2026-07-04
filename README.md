@@ -1,8 +1,6 @@
 # GhidraSharp
 
-<!-- CI badge — re-enable (remove these comment markers) after the first green run:
 [![CI](https://github.com/Const24/GhidraSharp/actions/workflows/ci.yml/badge.svg)](https://github.com/Const24/GhidraSharp/actions/workflows/ci.yml)
--->
 
 A typed **C# client for [Ghidra](https://ghidra-sre.org/)** over a small gRPC bridge.
 No Python in the chain.
@@ -155,6 +153,7 @@ Working bridge. The surface grows one RPC at a time as consumers need it.
 * `ListFunctions` — functions (+ callees), built to query client-side with LINQ
 * `GetFunction` — full detail for one function (typed signature, params, locals, callers)
 * `GetReferencesTo` / `GetReferencesFrom` — cross-references (xrefs)
+* `GetFunctionReferences` — every reference out of a function's body (e.g. its table data-refs)
 * `ListSymbols` / `GetSymbolsAt` — symbols by name or address
 * `RenameSymbol` — record a finding back onto the program (needs `writable: true`; in-memory unless saved)
 * `ReadBytes` — raw program memory (feeds a pure-C# byte/table layer)
@@ -165,6 +164,7 @@ Working bridge. The surface grows one RPC at a time as consumers need it.
 * `GetBookmarks` / `SetBookmark` — bookmarks
 * `CreateProject` — import a binary into a new persistent project (`.gpr`/`.rep`), analyzed + saved
 * `SaveProgram` — persist edits (renames, applied types, comments) to disk
+* `CloseProgram` — close the current program, releasing its on-disk lock (frees a pooled server for the next item)
 * `RunScript` — escape hatch: run any GhidraScript and capture its output
 * `ListLanguages` — the processor languages Ghidra supports (its language picker), to pick a `languageId`
 

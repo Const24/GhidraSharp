@@ -193,6 +193,20 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
         }
     }
 
+    /// <summary>
+    /// Close the current program/project, releasing its on-disk lock. Best-effort cleanup
+    /// (e.g. before disposing a server); a no-op on the server when nothing is open.
+    /// </summary>
+    /// <param name="ct">Cancellation token.</param>
+    public async Task CloseProgramAsync(CancellationToken ct = default)
+    {
+        var reply = await _client.CloseProgramAsync(new CloseProgramRequest(), cancellationToken: ct);
+        if (!reply.Success)
+        {
+            throw new GhidraException($"CloseProgram failed: {reply.Error}");
+        }
+    }
+
     private static ProgramInfo ToProgramInfo(OpenProgramReply reply) => new()
     {
         Name = reply.ProgramName,
@@ -295,6 +309,19 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(address);
         var reply = await _client.GetReferencesFromAsync(new ReferencesRequest { Address = address }, cancellationToken: ct);
+        return ToReferences(reply);
+    }
+
+    /// <summary>
+    /// Every reference originating in the body of the function at <paramref name="address"/> (entry or
+    /// any address inside it), ordered by from-address — e.g. a function's ordered table data-references.
+    /// </summary>
+    /// <param name="address">A function entry or any address inside it (hex).</param>
+    /// <param name="ct">Cancellation token.</param>
+    public async Task<IReadOnlyList<GhidraReference>> GetFunctionReferencesAsync(string address, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(address);
+        var reply = await _client.GetFunctionReferencesAsync(new ReferencesRequest { Address = address }, cancellationToken: ct);
         return ToReferences(reply);
     }
 

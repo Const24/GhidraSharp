@@ -327,8 +327,28 @@ public sealed class GhidraServer : IAsyncDisposable, IDisposable
     /// <inheritdoc/>
     public async ValueTask DisposeAsync()
     {
+        await TryReleaseAsync();
         await Client.DisposeAsync();
         TryKill(_process);
         _process.Dispose();
+    }
+
+    // Best-effort: ask the server to close its current project so it releases the on-disk
+    // lock before we kill the process. Bounded so a hung or crashed server can't block disposal.
+    private async Task TryReleaseAsync()
+    {
+        if (_process.HasExited)
+        {
+            return;
+        }
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            await Client.CloseProgramAsync(cts.Token);
+        }
+        catch
+        {
+            // server may be mid-operation or unreachable; the kill below still cleans up
+        }
     }
 }

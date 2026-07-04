@@ -71,6 +71,16 @@ class GhidraSharpServiceImplTest {
     }
 
     @Test
+    void getFunctionReferences_maps_xrefs() {
+        ReferencesReply r = stub.getFunctionReferences(ReferencesRequest.newBuilder().setAddress("00001000").build());
+        assertTrue(r.getSuccess());
+        Reference ref = r.getReferences(0);
+        assertEquals("00001100", ref.getFromAddress());
+        assertEquals("00001000", ref.getToAddress());
+        assertTrue(ref.getIsCall());
+    }
+
+    @Test
     void decompileFunction_maps_result() {
         DecompileReply r = stub.decompileFunction(DecompileRequest.newBuilder().setAddress("0x1000").build());
         assertTrue(r.getSuccess());
@@ -140,6 +150,12 @@ class GhidraSharpServiceImplTest {
     @Test
     void saveProgram_succeeds() {
         SaveProgramReply r = stub.saveProgram(SaveProgramRequest.newBuilder().build());
+        assertTrue(r.getSuccess());
+    }
+
+    @Test
+    void closeProgram_succeeds() {
+        AckReply r = stub.closeProgram(CloseProgramRequest.newBuilder().build());
         assertTrue(r.getSuccess());
     }
 

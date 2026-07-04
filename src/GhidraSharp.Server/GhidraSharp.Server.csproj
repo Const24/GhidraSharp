@@ -17,7 +17,7 @@
     <NoWarn>$(NoWarn);NU5128;NU5110;NU5111</NoWarn>
 
     <PackageId>Const24.GhidraSharp.Server</PackageId>
-    <Version>0.4.0</Version>
+    <Version>0.4.1</Version>
     <Authors>Const24</Authors>
     <Description>The GhidraSharpServer (Ghidra-as-a-library gRPC server) for Const24.GhidraSharp. Drops the server next to your app at build time so GhidraServer.StartAsync() finds it — ships with your publish output, no runtime download. Pulls in the Const24.GhidraSharp client. Requires JDK 21+ and a Ghidra 12.1+ install (GHIDRA_INSTALL_DIR).</Description>
     <PackageProjectUrl>https://github.com/Const24/GhidraSharp</PackageProjectUrl>

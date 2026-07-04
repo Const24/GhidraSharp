@@ -44,6 +44,9 @@ public interface GhidraEngine {
     /** References (xrefs) originating from {@code address} ("what this points to"). */
     ReferencesResult referencesFrom(String address);
 
+    /** Every reference originating in the body of the function at {@code address}, ordered by from-address. */
+    ReferencesResult functionReferences(String address);
+
     /** List symbols, optionally only those named {@code name}; {@code includeDynamic} adds auto-generated ones. */
     SymbolsResult listSymbols(boolean includeDynamic, String name);
 
@@ -80,6 +83,9 @@ public interface GhidraEngine {
 
     /** Persist the current (writable, project-backed) program to disk. */
     SaveResult saveProgram();
+
+    /** Close the current program/project, releasing its on-disk lock. No-op if nothing is open. */
+    void closeProgram();
 
     /** All comment types at an address. */
     CommentsResult getComments(String address);

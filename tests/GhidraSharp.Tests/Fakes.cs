@@ -112,6 +112,12 @@ internal sealed class HappyFake : ProtoSvc.GhidraSharpServiceBase
     public override Task<ReferencesReply> GetReferencesFrom(ReferencesRequest request, ServerCallContext context) =>
         Task.FromResult(Refs());
 
+    public override Task<ReferencesReply> GetFunctionReferences(ReferencesRequest request, ServerCallContext context) =>
+        Task.FromResult(Refs());
+
+    public override Task<AckReply> CloseProgram(CloseProgramRequest request, ServerCallContext context) =>
+        Task.FromResult(new AckReply { Success = true });
+
     private static ListSymbolsReply Symbols()
     {
         var reply = new ListSymbolsReply { Success = true };

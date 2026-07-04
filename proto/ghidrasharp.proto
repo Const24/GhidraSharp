@@ -43,6 +43,10 @@ service GhidraSharpService {
   // References (xrefs) originating FROM the given address: "what this points to".
   rpc GetReferencesFrom(ReferencesRequest) returns (ReferencesReply);
 
+  // Every reference originating in a function's whole body (all its instructions),
+  // ordered by from-address. Use this for a function's ordinal table-references.
+  rpc GetFunctionReferences(ReferencesRequest) returns (ReferencesReply);
+
   // List symbols (names) in the program, optionally filtered by name.
   rpc ListSymbols(ListSymbolsRequest) returns (ListSymbolsReply);
 
@@ -81,6 +85,10 @@ service GhidraSharpService {
 
   // Persist the current (writable, project-backed) program's changes to disk.
   rpc SaveProgram(SaveProgramRequest) returns (SaveProgramReply);
+
+  // Close the current program/project, releasing its on-disk lock. Best-effort
+  // cleanup before shutting a server down; a no-op when nothing is open.
+  rpc CloseProgram(CloseProgramRequest) returns (AckReply);
 
   // Comments at an address (all five Ghidra comment types).
   rpc GetComments(CommentsRequest) returns (CommentsReply);
@@ -380,6 +388,9 @@ message CreateProjectRequest {
 }
 
 message SaveProgramRequest {
+}
+
+message CloseProgramRequest {
 }
 
 message SaveProgramReply {
