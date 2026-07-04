@@ -1,6 +1,8 @@
 # GhidraSharp
 
+<!-- CI badge — re-enable (remove these markers) once Actions can run (billing):
 [![CI](https://github.com/Const24/GhidraSharp/actions/workflows/ci.yml/badge.svg)](https://github.com/Const24/GhidraSharp/actions/workflows/ci.yml)
+-->
 
 A typed **C# client for [Ghidra](https://ghidra-sre.org/)** over a small gRPC bridge.
 No Python in the chain.
