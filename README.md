@@ -1,9 +1,5 @@
 # GhidraSharp
 
-<!-- CI badge — re-enable (remove these markers) once Actions can run (billing):
-[![CI](https://github.com/Const24/GhidraSharp/actions/workflows/ci.yml/badge.svg)](https://github.com/Const24/GhidraSharp/actions/workflows/ci.yml)
--->
-
 A typed **C# client for [Ghidra](https://ghidra-sre.org/)** over a small gRPC bridge.
 No Python in the chain.
 
@@ -201,7 +197,7 @@ dotnet build GhidraSharp.slnx
 
 ## Testing
 
-A test pyramid; the fast tiers need no Ghidra and are the CI badge above.
+A test pyramid; the fast tiers need no Ghidra and run anywhere.
 
 ```sh
 # fast — C# unit + contract tests (client ↔ in-process fake server). No Ghidra/JVM.
