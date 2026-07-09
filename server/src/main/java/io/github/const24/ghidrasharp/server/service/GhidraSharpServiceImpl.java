@@ -36,6 +36,12 @@ import io.github.const24.ghidrasharp.proto.DataTypesRequest;
 import io.github.const24.ghidrasharp.proto.LanguageDescriptor;
 import io.github.const24.ghidrasharp.proto.ListLanguagesReply;
 import io.github.const24.ghidrasharp.proto.ListLanguagesRequest;
+import io.github.const24.ghidrasharp.proto.ListMemoryBlocksReply;
+import io.github.const24.ghidrasharp.proto.ListMemoryBlocksRequest;
+import io.github.const24.ghidrasharp.proto.MemoryBlockInfo;
+import io.github.const24.ghidrasharp.proto.FindStringsReply;
+import io.github.const24.ghidrasharp.proto.FindStringsRequest;
+import io.github.const24.ghidrasharp.proto.FoundStringInfo;
 import io.github.const24.ghidrasharp.proto.FunctionDetail;
 import io.github.const24.ghidrasharp.proto.FunctionDetailReply;
 import io.github.const24.ghidrasharp.proto.FunctionRequest;
@@ -364,6 +370,46 @@ public final class GhidraSharpServiceImpl extends GhidraSharpServiceGrpc.GhidraS
                     .setSize(l.size())
                     .setVariant(nullToEmpty(l.variant()))
                     .setDescription(nullToEmpty(l.description()))
+                    .build());
+        }
+        responseObserver.onNext(reply.build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void listMemoryBlocks(ListMemoryBlocksRequest request, StreamObserver<ListMemoryBlocksReply> responseObserver) {
+        GhidraEngine.MemoryBlocksResult r = engine.listMemoryBlocks();
+        ListMemoryBlocksReply.Builder reply = ListMemoryBlocksReply.newBuilder()
+                .setSuccess(r.success())
+                .setError(nullToEmpty(r.error()));
+        for (GhidraEngine.MemoryBlockInfo b : r.blocks()) {
+            reply.addBlocks(MemoryBlockInfo.newBuilder()
+                    .setName(nullToEmpty(b.name()))
+                    .setStart(nullToEmpty(b.start()))
+                    .setEnd(nullToEmpty(b.end()))
+                    .setSize(b.size())
+                    .setInitialized(b.initialized())
+                    .setRead(b.read())
+                    .setWrite(b.write())
+                    .setExecute(b.execute())
+                    .build());
+        }
+        responseObserver.onNext(reply.build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void findStrings(FindStringsRequest request, StreamObserver<FindStringsReply> responseObserver) {
+        GhidraEngine.FindStringsResult r = engine.findStrings(request.getSubstring(), request.getLimit());
+        FindStringsReply.Builder reply = FindStringsReply.newBuilder()
+                .setSuccess(r.success())
+                .setError(nullToEmpty(r.error()));
+        for (GhidraEngine.FoundStringInfo s : r.strings()) {
+            reply.addStrings(FoundStringInfo.newBuilder()
+                    .setAddress(nullToEmpty(s.address()))
+                    .setText(nullToEmpty(s.text()))
+                    .setIsUnicode(s.unicode())
+                    .addAllXrefFrom(s.xrefFrom())
                     .build());
         }
         responseObserver.onNext(reply.build());

@@ -148,4 +148,14 @@ public final class StubEngine implements GhidraEngine {
     public LanguagesResult listLanguages(String nameContains) {
         return LanguagesResult.failure("ListLanguages not implemented yet (StubEngine)");
     }
+
+    @Override
+    public MemoryBlocksResult listMemoryBlocks() {
+        return MemoryBlocksResult.failure("ListMemoryBlocks not implemented yet (StubEngine)");
+    }
+
+    @Override
+    public FindStringsResult findStrings(String substring, int limit) {
+        return FindStringsResult.failure("FindStrings not implemented yet (StubEngine)");
+    }
 }

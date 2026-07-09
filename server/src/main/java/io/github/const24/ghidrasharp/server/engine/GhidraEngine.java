@@ -105,6 +105,12 @@ public interface GhidraEngine {
     /** Processor languages Ghidra supports (optionally filtered by name) — its language picker. */
     LanguagesResult listLanguages(String nameContains);
 
+    /** The program's memory blocks / sections (name, range, size, permissions). */
+    MemoryBlocksResult listMemoryBlocks();
+
+    /** Defined strings whose text contains {@code substring} (case-insensitive; empty = all), with xrefs; capped at {@code limit} (&lt;= 0 = default). */
+    FindStringsResult findStrings(String substring, int limit);
+
     /** Result of opening a program. */
     record OpenResult(
             boolean success,
@@ -289,6 +295,38 @@ public interface GhidraEngine {
 
         public static LanguagesResult failure(String error) {
             return new LanguagesResult(false, List.of(), error);
+        }
+    }
+
+    /** One memory block / section: name, range, size, permissions. */
+    record MemoryBlockInfo(
+            String name,
+            String start,
+            String end,
+            long size,
+            boolean initialized,
+            boolean read,
+            boolean write,
+            boolean execute) {
+    }
+
+    /** Result of listing memory blocks. */
+    record MemoryBlocksResult(boolean success, List<MemoryBlockInfo> blocks, String error) {
+
+        public static MemoryBlocksResult failure(String error) {
+            return new MemoryBlocksResult(false, List.of(), error);
+        }
+    }
+
+    /** One defined string and the addresses that reference it. */
+    record FoundStringInfo(String address, String text, boolean unicode, List<String> xrefFrom) {
+    }
+
+    /** Result of a find-strings query. */
+    record FindStringsResult(boolean success, List<FoundStringInfo> strings, String error) {
+
+        public static FindStringsResult failure(String error) {
+            return new FindStringsResult(false, List.of(), error);
         }
     }
 

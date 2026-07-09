@@ -21,6 +21,8 @@ import ghidra.program.util.DefaultLanguageService;
 import ghidra.program.model.listing.Bookmark;
 import ghidra.program.model.listing.BookmarkManager;
 import ghidra.program.model.listing.CommentType;
+import ghidra.program.model.data.StringDataInstance;
+import ghidra.program.util.DefinedDataIterator;
 import ghidra.program.model.listing.Data;
 import ghidra.program.model.pcode.PcodeOp;
 import ghidra.framework.Application;
@@ -47,6 +49,7 @@ import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.BooleanSupplier;
@@ -980,6 +983,71 @@ public final class GhidraLibraryEngine implements GhidraEngine {
             }
         } catch (Exception e) {
             return LanguagesResult.failure(describe(e));
+        }
+    }
+
+    @Override
+    public MemoryBlocksResult listMemoryBlocks() {
+        try {
+            synchronized (lock) {
+                if (program == null) {
+                    return MemoryBlocksResult.failure("no program open; call OpenProgram first");
+                }
+                List<MemoryBlockInfo> out = new ArrayList<>();
+                for (ghidra.program.model.mem.MemoryBlock b : program.getMemory().getBlocks()) {
+                    out.add(new MemoryBlockInfo(
+                            b.getName(),
+                            b.getStart().toString(),
+                            b.getEnd().toString(),
+                            b.getSize(),
+                            b.isInitialized(),
+                            b.isRead(),
+                            b.isWrite(),
+                            b.isExecute()));
+                }
+                return new MemoryBlocksResult(true, out, "");
+            }
+        } catch (Exception e) {
+            return MemoryBlocksResult.failure(describe(e));
+        }
+    }
+
+    @Override
+    public FindStringsResult findStrings(String substring, int limit) {
+        try {
+            synchronized (lock) {
+                if (program == null) {
+                    return FindStringsResult.failure("no program open; call OpenProgram first");
+                }
+                String filter = (substring == null) ? "" : substring.toLowerCase();
+                int cap = (limit > 0) ? limit : 200;
+                ReferenceManager refMgr = program.getReferenceManager();
+                List<FoundStringInfo> out = new ArrayList<>();
+                // Iterate the program's DEFINED strings and match on the actual decoded text
+                // (not the sanitized s_/u_ label), so multi-word / renamed / imported strings are found.
+                for (Data data : DefinedDataIterator.byDataInstance(program, StringDataInstance::isString)) {
+                    if (out.size() >= cap) {
+                        break;
+                    }
+                    StringDataInstance sdi = StringDataInstance.getStringDataInstance(data);
+                    String text = sdi.getStringValue();
+                    if (text == null) {
+                        continue;
+                    }
+                    if (!filter.isEmpty() && !text.toLowerCase().contains(filter)) {
+                        continue;
+                    }
+                    boolean unicode = data.getDataType().getName().toLowerCase().contains("unicode");
+                    LinkedHashSet<String> xrefs = new LinkedHashSet<>();
+                    for (Reference ref : refMgr.getReferencesTo(data.getAddress())) {
+                        xrefs.add(ref.getFromAddress().toString());
+                    }
+                    out.add(new FoundStringInfo(data.getAddress().toString(), text, unicode, new ArrayList<>(xrefs)));
+                }
+                return new FindStringsResult(true, out, "");
+            }
+        } catch (Exception e) {
+            return FindStringsResult.failure(describe(e));
         }
     }
 

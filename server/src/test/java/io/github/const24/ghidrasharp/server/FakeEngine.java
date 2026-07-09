@@ -180,4 +180,16 @@ final class FakeEngine implements GhidraEngine {
         return new LanguagesResult(true,
                 List.of(new LanguageInfo("SuperH:BE:32:SH-2A", "SuperH", "big", 32, "SH-2A", "SuperH SH-2A")), "");
     }
+
+    @Override
+    public MemoryBlocksResult listMemoryBlocks() {
+        return new MemoryBlocksResult(true,
+                List.of(new MemoryBlockInfo(".text", "00001000", "00001fff", 4096L, true, true, false, true)), "");
+    }
+
+    @Override
+    public FindStringsResult findStrings(String substring, int limit) {
+        return new FindStringsResult(true,
+                List.of(new FoundStringInfo("00002000", "config.ini", false, List.of("00001500"))), "");
+    }
 }

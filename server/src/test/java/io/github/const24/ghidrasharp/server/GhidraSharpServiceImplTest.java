@@ -169,4 +169,33 @@ class GhidraSharpServiceImplTest {
         assertEquals("SuperH", l.getProcessor());
         assertEquals(32, l.getSize());
     }
+
+    @Test
+    void listMemoryBlocks_maps_block_range_and_permissions() {
+        ListMemoryBlocksReply r = stub.listMemoryBlocks(ListMemoryBlocksRequest.newBuilder().build());
+        assertTrue(r.getSuccess());
+        assertEquals(1, r.getBlocksCount());
+        MemoryBlockInfo b = r.getBlocks(0);
+        assertEquals(".text", b.getName());
+        assertEquals("00001000", b.getStart());
+        assertEquals("00001fff", b.getEnd());
+        assertEquals(4096L, b.getSize());
+        assertTrue(b.getInitialized());
+        assertTrue(b.getRead());
+        assertFalse(b.getWrite());
+        assertTrue(b.getExecute());
+    }
+
+    @Test
+    void findStrings_maps_text_and_xrefs() {
+        FindStringsReply r = stub.findStrings(FindStringsRequest.newBuilder().setSubstring("config").build());
+        assertTrue(r.getSuccess());
+        assertEquals(1, r.getStringsCount());
+        FoundStringInfo s = r.getStrings(0);
+        assertEquals("00002000", s.getAddress());
+        assertEquals("config.ini", s.getText());
+        assertFalse(s.getIsUnicode());
+        assertEquals(1, s.getXrefFromCount());
+        assertEquals("00001500", s.getXrefFrom(0));
+    }
 }

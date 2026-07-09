@@ -257,6 +257,26 @@ public sealed record DataItem
     public required bool Defined { get; init; }
 }
 
+/// <summary>
+/// A defined string that matched a substring search, together with the addresses that
+/// reference it — the "concept → code" bridge: search by the text you know (a filename,
+/// a key, a message) and get straight to the sites that consume it.
+/// </summary>
+public sealed record FoundString
+{
+    /// <summary>The string's address, as hex.</summary>
+    public required string Address { get; init; }
+
+    /// <summary>The string's text (Ghidra's value representation, or its <c>s_</c>/<c>u_</c> label as a fallback).</summary>
+    public required string Text { get; init; }
+
+    /// <summary>Whether the match is a Unicode string (<c>u_</c>) rather than ASCII (<c>s_</c>).</summary>
+    public required bool IsUnicode { get; init; }
+
+    /// <summary>The distinct from-addresses that reference this string (its xref sites).</summary>
+    public required IReadOnlyList<string> XrefFrom { get; init; }
+}
+
 /// <summary>A data type known to the program (a struct, enum, typedef, pointer, built-in, …).</summary>
 public sealed record GhidraDataType
 {
@@ -424,6 +444,39 @@ public sealed record GhidraLanguage
 
     /// <summary>Human-readable description.</summary>
     public required string Description { get; init; }
+}
+
+/// <summary>
+/// A memory block / section of the program — a named, contiguous address range with
+/// permissions (Ghidra's <c>MemoryBlock</c>). Lets a caller see the section layout (e.g. a
+/// small <c>.text</c> beside a huge <c>.rsrc</c> ⇒ the binary is mostly data, not code) and
+/// pick a range to dump with <see cref="GhidraClient.ReadBytesAsync"/>.
+/// </summary>
+public sealed record GhidraMemoryBlock
+{
+    /// <summary>The block/section name, e.g. <c>".text"</c>, <c>".rsrc"</c>, <c>"ram"</c>.</summary>
+    public required string Name { get; init; }
+
+    /// <summary>Start address, as hex.</summary>
+    public required string Start { get; init; }
+
+    /// <summary>End address (inclusive), as hex.</summary>
+    public required string End { get; init; }
+
+    /// <summary>Size in bytes.</summary>
+    public required ulong Size { get; init; }
+
+    /// <summary>Whether the block has backing bytes (vs. an uninitialized / bss block).</summary>
+    public required bool Initialized { get; init; }
+
+    /// <summary>Read permission.</summary>
+    public required bool Read { get; init; }
+
+    /// <summary>Write permission.</summary>
+    public required bool Write { get; init; }
+
+    /// <summary>Execute permission.</summary>
+    public required bool Execute { get; init; }
 }
 
 /// <summary>Error raised when the Ghidra server reports a failure for a request.</summary>

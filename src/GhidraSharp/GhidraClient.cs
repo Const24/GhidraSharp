@@ -96,6 +96,39 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
     }
 
     /// <summary>
+    /// List the current program's memory blocks / sections — name, address range, size and
+    /// permissions. Useful to see the section layout at a glance (a tiny <c>.text</c> next to a
+    /// huge <c>.rsrc</c>/<c>.data</c> means the binary is mostly data, not code) and to pick a
+    /// range to dump with <see cref="ReadBytesAsync"/>.
+    /// </summary>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="GhidraException">No program is open, or the server reported a failure.</exception>
+    public async Task<IReadOnlyList<GhidraMemoryBlock>> ListMemoryBlocksAsync(CancellationToken ct = default)
+    {
+        var reply = await _client.ListMemoryBlocksAsync(new ListMemoryBlocksRequest(), cancellationToken: ct);
+        if (!reply.Success)
+        {
+            throw new GhidraException($"ListMemoryBlocks failed: {reply.Error}");
+        }
+        var list = new List<GhidraMemoryBlock>(reply.Blocks.Count);
+        foreach (var b in reply.Blocks)
+        {
+            list.Add(new GhidraMemoryBlock
+            {
+                Name = b.Name,
+                Start = b.Start,
+                End = b.End,
+                Size = b.Size,
+                Initialized = b.Initialized,
+                Read = b.Read,
+                Write = b.Write,
+                Execute = b.Execute,
+            });
+        }
+        return list;
+    }
+
+    /// <summary>
     /// Open a program and make it the server's current program. Opens an existing
     /// Ghidra project program when <paramref name="projectPath"/> is given,
     /// otherwise imports the binary at <paramref name="programPath"/>.
@@ -351,6 +384,33 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(address);
         var reply = await _client.GetSymbolsAtAsync(new SymbolsAtRequest { Address = address }, cancellationToken: ct);
         return ToSymbols(reply);
+    }
+
+    /// <summary>
+    /// Find defined strings whose text contains <paramref name="substring"/> (case-insensitive;
+    /// null or empty = every defined string), and for each the addresses that reference it — the
+    /// "concept → code" loop. You know a filename / key / message; this hands you the sites that
+    /// consume it, no address needed. The match is on the string's actual decoded text (not the
+    /// Ghidra label), so multi-word and punctuated queries work and imported/renamed strings are
+    /// not missed.
+    /// </summary>
+    /// <param name="substring">Case-insensitive substring of the decoded text; null/empty returns all.</param>
+    /// <param name="limit">Maximum number of strings to return (&lt;= 0 = server default).</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="GhidraException">No program is open.</exception>
+    public async Task<IReadOnlyList<FoundString>> FindStringsAsync(
+        string? substring = null, int limit = 40, CancellationToken ct = default)
+    {
+        var reply = await _client.FindStringsAsync(
+            new FindStringsRequest { Substring = substring ?? "", Limit = limit }, cancellationToken: ct);
+        if (!reply.Success) throw new GhidraException(reply.Error);
+        return reply.Strings.Select(s => new FoundString
+        {
+            Address = s.Address,
+            Text = s.Text,
+            IsUnicode = s.IsUnicode,
+            XrefFrom = s.XrefFrom.ToList(),
+        }).ToList();
     }
 
     /// <summary>

@@ -212,4 +212,27 @@ public sealed class EngineIntegrationTests(IntegrationFixture fixture) : IClassF
         }
         Assert.True(anyWithRefs); // e.g. main() references add()/println -> outgoing refs
     }
+
+    [SkippableFact]
+    public async Task ListMemoryBlocks_returns_the_programs_sections()
+    {
+        Skip.IfNot(fixture.Available, fixture.SkipReason);
+        await Client.OpenProgramAsync(fixture.ClassFile);
+        var blocks = await Client.ListMemoryBlocksAsync();
+        Assert.NotEmpty(blocks); // every loaded program has at least one memory block
+        Assert.All(blocks, b => Assert.False(string.IsNullOrEmpty(b.Name)));
+    }
+
+    [SkippableFact]
+    public async Task FindStrings_runs_and_returns_a_list()
+    {
+        // Lenient smoke: a JVM .class may expose few or no Ghidra-defined strings, so we only
+        // assert the RPC round-trips a well-formed list. Precise field mapping is covered by the
+        // contract test against the fake server.
+        Skip.IfNot(fixture.Available, fixture.SkipReason);
+        await Client.OpenProgramAsync(fixture.ClassFile);
+        var all = await Client.FindStringsAsync(); // null substring = every defined string
+        Assert.NotNull(all);
+        Assert.All(all, s => Assert.False(string.IsNullOrEmpty(s.Address)));
+    }
 }

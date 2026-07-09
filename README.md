@@ -64,7 +64,7 @@ await using var server = await GhidraServer.StartAsync();
 var ghidra = server.Client;
 
 // import a raw firmware dump and analyze it — no project to manage.
-// languageId is the target chip's processor (here Renesas SH-2A, Subaru ECUs).
+// languageId is the target chip's processor (here Renesas SH-2A, e.g. automotive ECUs).
 await ghidra.OpenProgramAsync(@"C:\firmware\ecu.bin", languageId: "SuperH:BE:32:SH-2A");
 
 // list every function Ghidra recovered
@@ -141,6 +141,16 @@ foreach (var f in results.Where(r => !r.Ok))
 
 Sizing: ~1.5–2 GB per JVM with Ghidra loaded → ~24 on a 64 GB box.
 
+For the common "decompile a whole corpus to files" case, `BatchExtractor` is a ready-made
+job over a pool — point it at a set of binaries and it writes `<name>.c` (decompilation),
+`<name>.symbols.tsv`, and `<name>.anchors.tsv` per input, with same-basename inputs
+disambiguated so nothing is overwritten:
+
+```csharp
+await using var pool = await GhidraServerPool.StartAsync(size: 8, new GhidraServerOptions());
+var summaries = await BatchExtractor.RunAsync(pool, binaryPaths, outDir: "out");
+```
+
 ## Status
 
 Working bridge. The surface grows one RPC at a time as consumers need it.
@@ -165,6 +175,8 @@ Working bridge. The surface grows one RPC at a time as consumers need it.
 * `CloseProgram` — close the current program, releasing its on-disk lock (frees a pooled server for the next item)
 * `RunScript` — escape hatch: run any GhidraScript and capture its output
 * `ListLanguages` — the processor languages Ghidra supports (its language picker), to pick a `languageId`
+* `ListMemoryBlocks` — the program's sections (name, range, size, permissions) — its memory map
+* `FindStrings` — defined strings whose text matches a substring, each with its xrefs (the "concept → code" loop)
 
 Architecture-agnostic by construction — it just forwards a Ghidra language id, so
 the same code drives any processor Ghidra supports. Parity verified byte-for-byte

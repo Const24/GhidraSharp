@@ -1,18 +1,31 @@
 using Const24.GhidraSharp;
 
-// Smoke / demo client for the GhidraSharp bridge.
+// Smoke / demo client for the GhidraSharp bridge — exercises most of the API.
 //
-//   GhidraSharp.Sample [--server http://127.0.0.1:50080 | --spawn [--serverdir <dir> | --argfile <path>]]
-//                      [--rom <path-or-domainfile>] [--project <gpr>] [--lang <id>]
-//                      [--addr 0x21e0 | --name FUN_000021e0]
-//                      [--list [--calls FUN_xxxx]]
-//                      [--xrefs 0x30d1c]
-//                      [--decompile-all [--dump <file>]]
+// Connect:   --server http://127.0.0.1:50080   (default)
+//            --spawn [--serverdir <dir> | --argfile <path>] [--ghidra <install>]
+// Open:      --rom <binary|domainfile> [--project <gpr>] [--lang <id>] [--writable]
+//            --create-project <binary> [--proj-loc <dir>] [--proj-name <n>] [--lang <id>]
+// Explore:   --list [--calls <fn>] · --memory-blocks|--sections · --symbols · --symbols-at <a>
+//            --find-string "<text>" · --xrefs <a> · --function <a> · --data <a> · --datatypes [<f>]
+//            --bytes <a> [--len N] · --disasm <a> [--count N] · --instr-detail <a>
+// Decompile: --addr <a> | --name <fn> [--context] · --decompile-all [--dump <file>]
+// Mutate:    --rename-at <a> --to <name> · --apply-type <a> --type <t> · --save
+//            --set-comment <a> [--comment-type <t>] [--comment-text <s>] · --set-bookmark <a>
+// Scripts:   --run-script <path>
+// Batch:     --batch --paths <file|dir> [--out <dir>] [--pool N]   (fan a corpus across a server pool)
 //
-// --spawn starts (and stops) its own Java server; otherwise it connects to one
-// already running at --server.
+// --spawn starts (and stops) its own Java server; otherwise it connects to --server.
 
 var opts = ParseArgs(args);
+
+// --batch: fan a set of binaries across a GhidraServerPool, emitting per-binary
+// <name>.c + <name>.symbols.tsv + <name>.anchors.tsv. Owns its own pool; returns early.
+if (opts.ContainsKey("batch"))
+{
+    return await RunBatch(opts);
+}
+
 var server = opts.GetValueOrDefault("server", "http://127.0.0.1:50080");
 
 GhidraServer? spawned = null;
@@ -39,6 +52,37 @@ finally
 {
     if (spawned is not null) await spawned.DisposeAsync();
     else await ghidra.DisposeAsync();
+}
+
+static async Task<int> RunBatch(Dictionary<string, string> opts)
+{
+    var listArg = opts.GetValueOrDefault("paths", "");
+    if (listArg.Length == 0)
+    {
+        Console.Error.WriteLine("--batch needs --paths <file-with-one-path-per-line | directory>");
+        return 2;
+    }
+    IEnumerable<string> discovered = Directory.Exists(listArg)
+        ? Directory.EnumerateFiles(listArg, "*.dll").Concat(Directory.EnumerateFiles(listArg, "*.exe"))
+        : File.ReadAllLines(listArg).Select(l => l.Trim()).Where(l => l.Length > 0 && !l.StartsWith('#'));
+    var paths = discovered.ToList();
+    var outDir = opts.GetValueOrDefault("out", "batch-out");
+    var poolN = int.TryParse(opts.GetValueOrDefault("pool", "4"), out var n) ? n : 4;
+
+    var startOpts = opts.TryGetValue("serverdir", out var sd)
+        ? new GhidraServerOptions { ServerDirectory = sd, GhidraInstallDir = opts.GetValueOrDefault("ghidra") }
+        : new GhidraServerOptions { ArgFile = opts.GetValueOrDefault("argfile", "server/build/ghidrasharp-java.args"), GhidraInstallDir = opts.GetValueOrDefault("ghidra") };
+
+    Console.Error.WriteLine($"[batch] {paths.Count} binaries · pool={poolN} · out={outDir}");
+    await using var pool = await GhidraServerPool.StartAsync(poolN, startOpts);
+    var progress = new Progress<PoolProgress>(p => Console.Error.WriteLine($"[batch] {p.Done}/{p.Total} done · {p.Failed} failed"));
+    var results = await BatchExtractor.RunAsync(pool, paths, outDir, progress: progress);
+
+    Console.WriteLine("name\tlang\tfunctions\tdecompiled\tsymbols\tanchors\terror");
+    foreach (var r in results)
+        Console.WriteLine($"{r.Name}\t{r.LanguageId}\t{r.FunctionCount}\t{r.DecompiledOk}\t{r.SymbolCount}\t{r.AnchorHits}\t{r.Error}");
+    Console.Error.WriteLine($"[batch] complete · {results.Count(r => r.Error is null)}/{results.Count} ok");
+    return 0;
 }
 
 static async Task<int> Run(GhidraClient ghidra, Dictionary<string, string> opts, string server)
@@ -102,6 +146,49 @@ static async Task<int> Run(GhidraClient ghidra, Dictionary<string, string> opts,
 
         Console.WriteLine($"[decompile] {dec.Signature}  @ {dec.EntryPoint}");
         Console.WriteLine(dec.CCode);
+
+        // --context: show the function's immediate call-neighbourhood in one shot
+        // (callers + callees), so an agent sees the pak-read -> decrypt -> send path
+        // without three extra round trips.
+        if (opts.ContainsKey("context"))
+        {
+            var fd = name.Length > 0
+                ? await ghidra.GetFunctionByNameAsync(name, includeCallers: true)
+                : await ghidra.GetFunctionAtAsync(addr, includeCallers: true);
+            Console.WriteLine($"[context] callers ({fd.Callers.Count}): {string.Join(", ", fd.Callers.Take(12))}");
+            var frefs = await ghidra.GetFunctionReferencesAsync(fd.EntryPoint);
+            var callees = frefs.Where(r => r.IsCall).Select(r => r.ToAddress).Distinct().Take(12).ToList();
+            Console.WriteLine($"[context] callees ({callees.Count}): {string.Join(", ", callees)}");
+        }
+    }
+
+    // --find-string "<substr>": concept -> code. Ghidra auto-labels defined strings
+    // as s_<text>_<addr> (u_ for unicode); filter those by substring, then xref each
+    // so you jump straight to the functions that CONSUME the string. This is the
+    // single most-used RE loop (an agent knows "pak"/"key", not an address).
+    if (opts.TryGetValue("find-string", out var findStr))
+    {
+        var found = await ghidra.FindStringsAsync(findStr);
+        Console.WriteLine($"[find-string \"{findStr}\"] {found.Count} string(s) — concept -> code:");
+        foreach (var f in found)
+        {
+            Console.WriteLine($"  {f.Address}  {(f.IsUnicode ? "u" : "s")}: {f.Text}");
+            if (f.XrefFrom.Count > 0)
+                Console.WriteLine($"     xref-from: {string.Join(", ", f.XrefFrom.Take(8))}  ({f.XrefFrom.Count} sites)");
+        }
+    }
+
+    // --memory-blocks / --sections: the section layout (name, range, size, perms). A tiny
+    // .text next to a huge .rsrc/.data means the binary is mostly DATA, not code.
+    if (opts.ContainsKey("memory-blocks") || opts.ContainsKey("sections"))
+    {
+        var blocks = await ghidra.ListMemoryBlocksAsync();
+        Console.WriteLine($"[memory-blocks] {blocks.Count} block(s):");
+        foreach (var b in blocks)
+        {
+            var perm = $"{(b.Read ? "r" : "-")}{(b.Write ? "w" : "-")}{(b.Execute ? "x" : "-")}";
+            Console.WriteLine($"  {b.Name,-16} {b.Start}-{b.End}  {b.Size,10} B  {perm}  {(b.Initialized ? "init" : "uninit")}");
+        }
     }
 
     if (opts.ContainsKey("list"))

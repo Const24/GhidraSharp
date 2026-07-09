@@ -211,4 +211,28 @@ public sealed class MappingContractTests(HappyServerFixture fixture) : IClassFix
         await Client.RenameSymbolAtAsync("0x1000", "newName");
         await Client.SetBookmarkAsync("0x1000", comment: "n");
     }
+
+    [Fact]
+    public async Task ListMemoryBlocks_maps_block_range_and_permissions()
+    {
+        var b = Assert.Single(await Client.ListMemoryBlocksAsync());
+        Assert.Equal(".text", b.Name);
+        Assert.Equal("00001000", b.Start);
+        Assert.Equal("00001fff", b.End);
+        Assert.Equal(4096UL, b.Size);
+        Assert.True(b.Initialized);
+        Assert.True(b.Read);
+        Assert.False(b.Write);
+        Assert.True(b.Execute);
+    }
+
+    [Fact]
+    public async Task FindStrings_maps_text_and_xrefs()
+    {
+        var s = Assert.Single(await Client.FindStringsAsync("config"));
+        Assert.Equal("00002000", s.Address);
+        Assert.Equal("config.ini", s.Text);
+        Assert.False(s.IsUnicode);
+        Assert.Equal("00001500", Assert.Single(s.XrefFrom));
+    }
 }

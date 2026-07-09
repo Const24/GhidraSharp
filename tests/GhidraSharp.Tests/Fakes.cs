@@ -260,6 +260,36 @@ internal sealed class HappyFake : ProtoSvc.GhidraSharpServiceBase
                 },
             },
         });
+
+    public override Task<ListMemoryBlocksReply> ListMemoryBlocks(ListMemoryBlocksRequest request, ServerCallContext context)
+    {
+        var reply = new ListMemoryBlocksReply { Success = true };
+        reply.Blocks.Add(new MemoryBlockInfo
+        {
+            Name = ".text",
+            Start = "00001000",
+            End = "00001fff",
+            Size = 4096,
+            Initialized = true,
+            Read = true,
+            Write = false,
+            Execute = true,
+        });
+        return Task.FromResult(reply);
+    }
+
+    public override Task<FindStringsReply> FindStrings(FindStringsRequest request, ServerCallContext context)
+    {
+        var reply = new FindStringsReply { Success = true };
+        reply.Strings.Add(new FoundStringInfo
+        {
+            Address = "00002000",
+            Text = "config.ini",
+            IsUnicode = false,
+            XrefFrom = { "00001500" },
+        });
+        return Task.FromResult(reply);
+    }
 }
 
 /// <summary>Echoes the comment type the client sent (as the error), to verify the
