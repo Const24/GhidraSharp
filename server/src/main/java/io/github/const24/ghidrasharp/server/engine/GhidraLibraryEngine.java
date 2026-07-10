@@ -3,6 +3,7 @@ package io.github.const24.ghidrasharp.server.engine;
 import ghidra.GhidraApplicationLayout;
 import generic.jar.ResourceFile;
 import ghidra.app.decompiler.DecompInterface;
+import ghidra.app.decompiler.DecompileOptions;
 import ghidra.app.decompiler.DecompileResults;
 import ghidra.app.script.GhidraScript;
 import ghidra.app.script.GhidraScriptProvider;
@@ -69,6 +70,18 @@ public final class GhidraLibraryEngine implements GhidraEngine {
     private static final String PROGRAM_CONTENT_TYPE = "Program";
     private static final int MAX_READ_BYTES = 1 << 20;       // 1 MiB cap per ReadBytes
     private static final int DEFAULT_INSTRUCTIONS = 64;       // when no count and not inside a function
+    // Recycle the native decompiler process every N functions during a whole-program decompile. A single
+    // DecompInterface owns one decompile.exe whose resident memory only GROWS across a run (it does not shrink
+    // mid-batch); on a giant binary (e.g. ~90k functions) that creeps to multiple GB per server and breaks any
+    // pool that runs several servers on a RAM-bounded host. Disposing + rebinding resets the process. See setOptions.
+    private static final int DECOMP_RECYCLE_EVERY = 1500;
+    private static final int DECOMP_MAX_PAYLOAD_MB = 50;      // cap a single function's decompile payload (Ghidra default)
+    // Cap instructions the decompiler processes per function, BELOW Ghidra's 100k default. A single pathological
+    // function (huge/obfuscated body) can make the NATIVE decompile.exe commit tens of GB — that peak lives outside
+    // the JVM heap, so -Xmx does not bound it, and recycling only resets RSS BETWEEN functions, not within one. This
+    // is the one lever that bounds a single function's peak: the decompiler bails early past the cap. 50k spares all
+    // legit functions (<~10-20k instructions); a bailed monster (garbage decompile anyway) returns a failure result.
+    private static final int DECOMP_MAX_INSTRUCTIONS = 50_000;
 
     private final Object lock = new Object();
     private final String installDir;
@@ -170,11 +183,25 @@ public final class GhidraLibraryEngine implements GhidraEngine {
                 return;
             }
             if (all) {
+                int sinceRecycle = 0;
                 for (Function fn : program.getFunctionManager().getFunctions(true)) {
                     if (cancelled.getAsBoolean()) {
                         return;
                     }
                     sink.accept(safeDecompile(fn, timeoutSeconds));
+                    // Reset the native decompiler process periodically so its RSS cannot creep unbounded across
+                    // a huge binary — this is what keeps each pooled server within a predictable memory budget.
+                    // A recycle failure (e.g. the native process cannot be respawned under memory pressure — the
+                    // very scenario a large pool creates) must NOT abort the whole stream: end the sweep cleanly so
+                    // every function decompiled so far is preserved (the client's onCompleted still fires).
+                    if (++sinceRecycle >= DECOMP_RECYCLE_EVERY) {
+                        sinceRecycle = 0;
+                        if (!recycleDecompiler()) {
+                            sink.accept(DecompileResult.failure(
+                                    "decompiler recycle failed; ended decompile sweep early with partial results"));
+                            return;
+                        }
+                    }
                 }
             } else {
                 for (String address : addresses) {
@@ -1226,11 +1253,39 @@ public final class GhidraLibraryEngine implements GhidraEngine {
 
     private void bindDecompiler(Program program) {
         decomp = new DecompInterface();
+        // Pin the per-function decompile payload to Ghidra's own suggested default (50 MB) explicitly, so a future
+        // Ghidra default change can't silently raise a single server's peak native memory. This equals today's
+        // default, so it adds no protection now — the real RSS control is periodic recycling (DECOMP_RECYCLE_EVERY);
+        // this is just a belt-and-braces ceiling.
+        DecompileOptions options = new DecompileOptions();
+        options.setMaxPayloadMBytes(DECOMP_MAX_PAYLOAD_MB);
+        // Bound a single monstrous function's native decompiler peak — the only cap that does (see DECOMP_MAX_INSTRUCTIONS).
+        options.setMaxInstructions(DECOMP_MAX_INSTRUCTIONS);
+        decomp.setOptions(options);
         if (!decomp.openProgram(program)) {
             String msg = decomp.getLastMessage();
             decomp.dispose();
             decomp = null;
             throw new IllegalStateException("decompiler failed to open program: " + msg);
+        }
+    }
+
+    /**
+     * Dispose and rebind the decompiler on the current program, resetting the native decompile.exe process RSS.
+     * Best-effort: returns {@code false} (instead of throwing) if the decompiler cannot be rebound, so a recycle
+     * failure mid-batch degrades gracefully rather than aborting the whole decompile stream. On failure {@code decomp}
+     * is left null, so any subsequent decompile attempt fails per-function via {@link #safeDecompile} rather than hard.
+     */
+    private boolean recycleDecompiler() {
+        if (decomp != null) {
+            decomp.dispose();
+            decomp = null;
+        }
+        try {
+            bindDecompiler(program);
+            return true;
+        } catch (Exception e) {
+            return false;
         }
     }
 

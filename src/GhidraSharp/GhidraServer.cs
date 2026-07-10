@@ -35,6 +35,20 @@ public sealed class GhidraServerOptions
 
     /// <summary>How long to wait for the server to start listening before failing.</summary>
     public TimeSpan StartupTimeout { get; init; } = TimeSpan.FromSeconds(120);
+
+    /// <summary>
+    /// Max JVM heap in MB (<c>-Xmx</c>) for the server process. Defaults to <c>8192</c>. Left unset, HotSpot's default
+    /// max heap is a quarter of physical RAM — far too large when a <see cref="GhidraServerPool"/> runs many servers
+    /// on one host (N × ¼-RAM overcommits and OOMs), so a cap is applied by default to keep the pool's memory ceiling
+    /// predictable. This is a CEILING, not a reservation (no <c>-Xms</c>): small programs stay well under it while a
+    /// large binary's analysis can still use the headroom it needs, so the default is set generously. On a
+    /// RAM-constrained host running a big pool, lower it (roughly host RAM ÷ pool size, leaving room for each
+    /// server's native decompiler); set <c>null</c> to inherit the JVM default.
+    /// </summary>
+    public int? JvmMaxHeapMb { get; init; } = 8192;
+
+    /// <summary>Extra JVM options placed before the classpath (e.g. GC flags). Optional; applied after <c>-Xmx</c>.</summary>
+    public IReadOnlyList<string>? JvmArgs { get; init; }
 }
 
 /// <summary>
@@ -194,12 +208,16 @@ public sealed class GhidraServer : IAsyncDisposable, IDisposable
 
     private const string MainClass = "io.github.const24.ghidrasharp.server.GhidraSharpServer";
 
-    private static List<string> BuildLaunchArgs(GhidraServerOptions options)
+    internal static List<string> BuildLaunchArgs(GhidraServerOptions options)
     {
+        // JVM options MUST precede -cp / @argfile. -Xmx caps each server's heap so a pool of N servers has a
+        // predictable memory ceiling instead of the HotSpot default (¼ of physical RAM) × N.
+        var args = JvmArgs(options);
         var serverDir = ResolveServerDirectory(options);
         if (serverDir is not null)
         {
-            return BuildClasspathArgs(serverDir, options);
+            args.AddRange(BuildClasspathArgs(serverDir, options));
+            return args;
         }
         if (!string.IsNullOrWhiteSpace(options.ArgFile))
         {
@@ -209,12 +227,28 @@ public sealed class GhidraServer : IAsyncDisposable, IDisposable
                 throw new FileNotFoundException(
                     $"Java argfile not found: {argFile}. Run the server's 'writeServerArgs' Gradle task first.", argFile);
             }
-            return ["@" + argFile];
+            args.Add("@" + argFile);
+            return args;
         }
         throw new InvalidOperationException(
             "No GhidraSharpServer found. Install the Const24.GhidraSharp.Server package (it ships one next " +
             "to your app), or download ghidrasharp-server from https://github.com/Const24/GhidraSharp/releases " +
             "and set GhidraServerOptions.ServerDirectory, or set ArgFile when building from source.");
+    }
+
+    // JVM options that precede the classpath: the -Xmx cap (default 8 GB) plus any caller-supplied extras.
+    private static List<string> JvmArgs(GhidraServerOptions options)
+    {
+        var args = new List<string>();
+        if (options.JvmMaxHeapMb is int mb && mb > 0)
+        {
+            args.Add($"-Xmx{mb}m");
+        }
+        if (options.JvmArgs is { Count: > 0 })
+        {
+            args.AddRange(options.JvmArgs);
+        }
+        return args;
     }
 
     // Resolve the server distribution: explicit ServerDirectory, else GHIDRASHARP_SERVER_DIR,
