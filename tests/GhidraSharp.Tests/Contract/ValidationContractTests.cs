@@ -17,14 +17,8 @@ public sealed class ValidationContractTests(HappyServerFixture fixture) : IClass
     }
 
     [Fact]
-    public async Task ReadBytes_rejects_a_nonpositive_length()
-    {
-        await Assert.ThrowsAnyAsync<ArgumentException>(() => Client.ReadBytesAsync("0x1000", 0));
-    }
+    public async Task ReadBytes_rejects_a_nonpositive_length() => await Assert.ThrowsAnyAsync<ArgumentException>(() => Client.ReadBytesAsync("0x1000", 0));
 
     [Fact]
-    public void Connect_rejects_a_blank_address()
-    {
-        Assert.ThrowsAny<ArgumentException>(() => GhidraClient.Connect(""));
-    }
+    public void Connect_rejects_a_blank_address() => Assert.ThrowsAny<ArgumentException>(() => GhidraClient.Connect(""));
 }

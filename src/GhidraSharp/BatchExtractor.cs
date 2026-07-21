@@ -56,15 +56,15 @@ public sealed record BatchExtractorOptions
     public IReadOnlyCollection<string> AnchorApis { get; init; } = DefaultAnchorApis;
 
     /// <summary>The default anchor-API set: file I/O + WinCrypt + registry + sockets + J2534 PassThru.</summary>
-    public static readonly IReadOnlyCollection<string> DefaultAnchorApis = new[]
-    {
+    public static readonly IReadOnlyCollection<string> DefaultAnchorApis =
+    [
         "CreateFile", "ReadFile", "WriteFile", "fopen", "fread", "fwrite", "_read", "MapViewOfFile", "GetModuleFileName",
         "CryptDecrypt", "CryptEncrypt", "CryptDeriveKey", "CryptAcquireContext", "CryptCreateHash", "CryptHashData",
         "CryptImportKey", "CryptGenKey", "CryptGenRandom",
         "RegOpenKey", "RegQueryValue", "RegCreateKey", "RegSetValue",
         "socket", "connect", "send", "recv", "WSAStartup",
         "PassThru",
-    };
+    ];
 }
 
 /// <summary>
@@ -102,18 +102,18 @@ public static class BatchExtractor
         options ??= new BatchExtractorOptions();
         Directory.CreateDirectory(outDir);
 
-        var paths = binaryPaths as IReadOnlyList<string> ?? binaryPaths.ToList();
+        var paths = binaryPaths as IReadOnlyList<string> ?? [.. binaryPaths];
 
         // Output stems: a unique basename keeps its name; a basename shared by 2+ inputs
         // (routine when sweeping per-model / per-version folders) gets a short path-hash
         // suffix, so same-named binaries from different folders don't overwrite each other's
         // <name>.c / .symbols.tsv / .anchors.tsv.
         var basenameCounts = paths
-            .GroupBy(p => System.IO.Path.GetFileName(p), StringComparer.OrdinalIgnoreCase)
+            .GroupBy(p => Path.GetFileName(p), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
         string StemFor(string p)
         {
-            var b = System.IO.Path.GetFileName(p);
+            var b = Path.GetFileName(p);
             return basenameCounts[b] > 1 ? $"{b}_{ShortHash(p)}" : b;
         }
 
@@ -124,10 +124,10 @@ public static class BatchExtractor
             progress,
             ct).ConfigureAwait(false);
 
-        return paths.Select(p =>
+        return [.. paths.Select(p =>
             byPath.TryGetValue(p, out var s)
                 ? s
-                : new BinaryExtractSummary(p, StemFor(p), "", 0, 0, 0, 0, 0, "no result")).ToList();
+                : new BinaryExtractSummary(p, StemFor(p), "", 0, 0, 0, 0, 0, "no result"))];
     }
 
     private static async Task<BinaryExtractSummary> ExtractOneAsync(
@@ -139,16 +139,19 @@ public static class BatchExtractor
             var funcs = await client.ListFunctionsAsync(includeCalls: false, ct).ConfigureAwait(false);
 
             // Symbols are needed for both the oracle and the anchor scan — fetch once.
-            IReadOnlyList<GhidraSymbol> syms = options.Symbols || options.AnchorCoverage
+            var syms = options.Symbols || options.AnchorCoverage
                 ? await client.ListSymbolsAsync(includeDynamic: false, ct: ct).ConfigureAwait(false)
-                : Array.Empty<GhidraSymbol>();
+                : [];
 
             if (options.Symbols)
             {
                 var sb = new StringBuilder("address\tname\ttype\tsource\n");
                 foreach (var s in syms)
+                {
                     sb.Append(s.Address).Append('\t').Append(s.Name).Append('\t').Append(s.SymbolType).Append('\t').Append(s.Source).Append('\n');
-                await File.WriteAllTextAsync(System.IO.Path.Combine(outDir, name + ".symbols.tsv"), sb.ToString(), ct).ConfigureAwait(false);
+                }
+
+                await File.WriteAllTextAsync(Path.Combine(outDir, name + ".symbols.tsv"), sb.ToString(), ct).ConfigureAwait(false);
             }
 
             var okc = 0;
@@ -172,7 +175,7 @@ public static class BatchExtractor
                         failc++;
                     }
                 }
-                await File.WriteAllTextAsync(System.IO.Path.Combine(outDir, name + ".c"), sb.ToString(), ct).ConfigureAwait(false);
+                await File.WriteAllTextAsync(Path.Combine(outDir, name + ".c"), sb.ToString(), ct).ConfigureAwait(false);
             }
 
             var anchorHits = 0;
@@ -189,7 +192,10 @@ public static class BatchExtractor
                 foreach (var s in syms)
                 {
                     if (!options.AnchorApis.Any(a => s.Name.Contains(a, StringComparison.OrdinalIgnoreCase)))
+                    {
                         continue;
+                    }
+
                     IReadOnlyList<GhidraReference> refs;
                     try { refs = await client.GetReferencesToAsync(s.Address, ct).ConfigureAwait(false); }
                     catch { continue; }
@@ -201,7 +207,7 @@ public static class BatchExtractor
                         anchorHits++;
                     }
                 }
-                await File.WriteAllTextAsync(System.IO.Path.Combine(outDir, name + ".anchors.tsv"), sb.ToString(), ct).ConfigureAwait(false);
+                await File.WriteAllTextAsync(Path.Combine(outDir, name + ".anchors.tsv"), sb.ToString(), ct).ConfigureAwait(false);
             }
 
             return new BinaryExtractSummary(path, name, info.LanguageId, info.FunctionCount, okc, failc, syms.Count, anchorHits, null);
@@ -223,10 +229,17 @@ public static class BatchExtractor
     private static string ContainingFunction(List<(ulong Entry, string Name, ulong Size)> ordered, ulong addr)
     {
         // ordered ascending by Entry; the containing function is the last whose [Entry, Entry+Size) covers addr.
-        foreach (var t in ordered)
+        foreach (var (Entry, Name, Size) in ordered)
         {
-            if (t.Entry > addr) break;
-            if (addr < t.Entry + t.Size) return t.Name;
+            if (Entry > addr)
+            {
+                break;
+            }
+
+            if (addr < Entry + Size)
+            {
+                return Name;
+            }
         }
         return "";
     }
@@ -236,7 +249,11 @@ public static class BatchExtractor
 
     private static ulong? ParseHex(string s)
     {
-        if (string.IsNullOrEmpty(s)) return null;
+        if (string.IsNullOrEmpty(s))
+        {
+            return null;
+        }
+
         var h = s.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? s.AsSpan(2) : s.AsSpan();
         return ulong.TryParse(h, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var v) ? v : null;
     }

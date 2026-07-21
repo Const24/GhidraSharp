@@ -286,7 +286,7 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
         {
             throw new GhidraException($"ListFunctions failed: {reply.Error}");
         }
-        return reply.Functions.Select(ToFunction).ToList();
+        return [.. reply.Functions.Select(ToFunction)];
     }
 
     /// <summary>
@@ -403,14 +403,18 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
     {
         var reply = await _client.FindStringsAsync(
             new FindStringsRequest { Substring = substring ?? "", Limit = limit }, cancellationToken: ct);
-        if (!reply.Success) throw new GhidraException(reply.Error);
-        return reply.Strings.Select(s => new FoundString
+        if (!reply.Success)
+        {
+            throw new GhidraException(reply.Error);
+        }
+
+        return [.. reply.Strings.Select(s => new FoundString
         {
             Address = s.Address,
             Text = s.Text,
             IsUnicode = s.IsUnicode,
-            XrefFrom = s.XrefFrom.ToList(),
-        }).ToList();
+            XrefFrom = [.. s.XrefFrom],
+        })];
     }
 
     /// <summary>
@@ -490,14 +494,14 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
         {
             throw new GhidraException($"GetInstructions failed: {reply.Error}");
         }
-        return reply.Instructions.Select(i => new Instruction
+        return [.. reply.Instructions.Select(i => new Instruction
         {
             Address = i.Address,
             Mnemonic = i.Mnemonic,
             Representation = i.Representation,
             Bytes = i.RawBytes.ToByteArray(),
             Length = i.Length,
-        }).ToList();
+        })];
     }
 
     /// <summary>Full detail for the function whose entry point is <paramref name="address"/> (hex).</summary>
@@ -541,13 +545,13 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
             VarArgs = f.Varargs,
             Inline = f.Inline,
             Size = f.Size,
-            Parameters = f.Parameters.Select(ToVariable).ToList(),
-            Locals = f.LocalVariables.Select(ToVariable).ToList(),
-            Callers = f.Callers.ToList(),
+            Parameters = [.. f.Parameters.Select(ToVariable)],
+            Locals = [.. f.LocalVariables.Select(ToVariable)],
+            Callers = [.. f.Callers],
         };
     }
 
-    private static GhidraVariable ToVariable(Protocol.Variable v) => new()
+    private static GhidraVariable ToVariable(Variable v) => new()
     {
         Name = v.Name,
         DataType = v.DataType,
@@ -577,14 +581,14 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
         {
             throw new GhidraException($"ListDataTypes failed: {reply.Error}");
         }
-        return reply.DataTypes.Select(d => new GhidraDataType
+        return [.. reply.DataTypes.Select(d => new GhidraDataType
         {
             Name = d.Name,
             DisplayName = d.DisplayName,
             Path = d.Path,
             Kind = d.Kind,
             Length = d.Length,
-        }).ToList();
+        })];
     }
 
     /// <summary>
@@ -699,13 +703,13 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
         {
             throw new GhidraException($"GetBookmarks failed: {reply.Error}");
         }
-        return reply.Bookmarks.Select(b => new GhidraBookmark
+        return [.. reply.Bookmarks.Select(b => new GhidraBookmark
         {
             Address = b.Address,
             Type = b.Type,
             Category = b.Category,
             Comment = b.Comment,
-        }).ToList();
+        })];
     }
 
     /// <summary>Add a bookmark at <paramref name="address"/>. Needs a writable program.</summary>
@@ -748,7 +752,7 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
             Representation = d.Representation,
             Bytes = d.RawBytes.ToByteArray(),
             Length = d.Length,
-            Operands = d.Operands.Select(o => new Operand
+            Operands = [.. d.Operands.Select(o => new Operand
             {
                 Index = o.Index,
                 Representation = o.Representation,
@@ -756,13 +760,13 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
                 Register = o.Register,
                 HasScalar = o.HasScalar,
                 Scalar = o.Scalar,
-            }).ToList(),
-            Pcode = d.Pcode.Select(p => new PcodeOp
+            })],
+            Pcode = [.. d.Pcode.Select(p => new PcodeOp
             {
                 Mnemonic = p.Mnemonic,
                 Output = p.Output,
-                Inputs = p.Inputs.ToList(),
-            }).ToList(),
+                Inputs = [.. p.Inputs],
+            })],
         };
     }
 
@@ -772,7 +776,7 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
         {
             throw new GhidraException($"Symbols query failed: {reply.Error}");
         }
-        return reply.Symbols.Select(s => new GhidraSymbol
+        return [.. reply.Symbols.Select(s => new GhidraSymbol
         {
             Name = s.Name,
             Address = s.Address,
@@ -780,7 +784,7 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
             Source = s.Source,
             IsPrimary = s.IsPrimary,
             IsGlobal = s.IsGlobal,
-        }).ToList();
+        })];
     }
 
     private static GhidraFunction ToFunction(FunctionInfo f) => new()
@@ -790,7 +794,7 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
         Size = f.Size,
         ParameterCount = f.ParameterCount,
         IsThunk = f.IsThunk,
-        Calls = f.Calls.ToList(),
+        Calls = [.. f.Calls],
     };
 
     private static Decompilation ToDecompilation(DecompileReply r) => new()
@@ -808,7 +812,7 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
         {
             throw new GhidraException($"GetReferences failed: {reply.Error}");
         }
-        return reply.References.Select(r => new GhidraReference
+        return [.. reply.References.Select(r => new GhidraReference
         {
             FromAddress = r.FromAddress,
             ToAddress = r.ToAddress,
@@ -818,7 +822,7 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
             IsData = r.IsData,
             OperandIndex = r.OperandIndex,
             IsPrimary = r.IsPrimary,
-        }).ToList();
+        })];
     }
 
     /// <inheritdoc/>

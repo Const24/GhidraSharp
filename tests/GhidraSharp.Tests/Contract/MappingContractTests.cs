@@ -67,7 +67,7 @@ public sealed class MappingContractTests(HappyServerFixture fixture) : IClassFix
         Assert.Equal("00001000", fn.EntryPoint);
         Assert.Equal(20UL, fn.Size);
         Assert.Equal(2, fn.ParameterCount);
-        Assert.Equal(new[] { "callee_a", "callee_b" }, fn.Calls);
+        Assert.Equal(["callee_a", "callee_b"], fn.Calls);
     }
 
     [Fact]
@@ -111,10 +111,7 @@ public sealed class MappingContractTests(HappyServerFixture fixture) : IClassFix
     }
 
     [Fact]
-    public async Task CloseProgram_succeeds()
-    {
-        await Client.CloseProgramAsync(); // HappyFake returns success -> must not throw
-    }
+    public async Task CloseProgram_succeeds() => await Client.CloseProgramAsync(); // HappyFake returns success -> must not throw
 
     [Fact]
     public async Task Symbols_map()
@@ -151,7 +148,7 @@ public sealed class MappingContractTests(HappyServerFixture fixture) : IClassFix
     public async Task ReadBytes_maps_to_byte_array()
     {
         var bytes = await Client.ReadBytesAsync("0x1000", 2);
-        Assert.Equal(new byte[] { 0xDE, 0xAD }, bytes);
+        Assert.Equal("ޭ"u8.ToArray(), bytes);
     }
 
     [Fact]

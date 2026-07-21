@@ -81,7 +81,7 @@ public sealed class GhidraServerPool : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(items);
         ArgumentNullException.ThrowIfNull(body);
 
-        var work = items as IReadOnlyList<T> ?? items.ToList();
+        var work = items as IReadOnlyList<T> ?? [.. items];
         var total = work.Count;
         var results = new PoolResult<T>[total];
         if (total == 0)

@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 namespace Const24.GhidraSharp.Tests.Integration;
 
 /// <summary>
@@ -18,7 +16,7 @@ public sealed class ServerPoolTests
 {
     private sealed class Recorder : IProgress<PoolProgress>
     {
-        private readonly object _lock = new();
+        private readonly Lock _lock = new();
         public PoolProgress Last { get; private set; }
         public int Reports { get; private set; }
         public void Report(PoolProgress value)
@@ -60,7 +58,10 @@ public sealed class ServerPoolTests
         var results = await pool.ForEachAsync(Enumerable.Range(0, 6), async (client, i, ct) =>
         {
             await client.PingAsync(ct);
-            if (i % 2 == 0) throw new InvalidOperationException($"boom {i}");
+            if (i % 2 == 0)
+            {
+                throw new InvalidOperationException($"boom {i}");
+            }
         });
 
         Assert.Equal(3, results.Count(r => r.Ok));   // odd items

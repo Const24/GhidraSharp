@@ -10,10 +10,7 @@ public class GhidraServerTests
     }
 
     [Fact]
-    public void ResolveJava_returns_an_explicit_executable_unchanged()
-    {
-        Assert.Equal("/opt/jdk/bin/java", GhidraServer.ResolveJava("/opt/jdk/bin/java"));
-    }
+    public void ResolveJava_returns_an_explicit_executable_unchanged() => Assert.Equal("/opt/jdk/bin/java", GhidraServer.ResolveJava("/opt/jdk/bin/java"));
 
     [Fact]
     public async Task StartAsync_throws_a_clear_error_when_the_argfile_is_missing()

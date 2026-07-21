@@ -50,8 +50,14 @@ try
 }
 finally
 {
-    if (spawned is not null) await spawned.DisposeAsync();
-    else await ghidra.DisposeAsync();
+    if (spawned is not null)
+    {
+        await spawned.DisposeAsync();
+    }
+    else
+    {
+        await ghidra.DisposeAsync();
+    }
 }
 
 static async Task<int> RunBatch(Dictionary<string, string> opts)
@@ -62,7 +68,7 @@ static async Task<int> RunBatch(Dictionary<string, string> opts)
         Console.Error.WriteLine("--batch needs --paths <file-with-one-path-per-line | directory>");
         return 2;
     }
-    IEnumerable<string> discovered = Directory.Exists(listArg)
+    var discovered = Directory.Exists(listArg)
         ? Directory.EnumerateFiles(listArg, "*.dll").Concat(Directory.EnumerateFiles(listArg, "*.exe"))
         : File.ReadAllLines(listArg).Select(l => l.Trim()).Where(l => l.Length > 0 && !l.StartsWith('#'));
     var paths = discovered.ToList();
@@ -80,7 +86,10 @@ static async Task<int> RunBatch(Dictionary<string, string> opts)
 
     Console.WriteLine("name\tlang\tfunctions\tdecompiled\tsymbols\tanchors\terror");
     foreach (var r in results)
+    {
         Console.WriteLine($"{r.Name}\t{r.LanguageId}\t{r.FunctionCount}\t{r.DecompiledOk}\t{r.SymbolCount}\t{r.AnchorHits}\t{r.Error}");
+    }
+
     Console.Error.WriteLine($"[batch] complete · {results.Count(r => r.Error is null)}/{results.Count} ok");
     return 0;
 }
@@ -174,7 +183,9 @@ static async Task<int> Run(GhidraClient ghidra, Dictionary<string, string> opts,
         {
             Console.WriteLine($"  {f.Address}  {(f.IsUnicode ? "u" : "s")}: {f.Text}");
             if (f.XrefFrom.Count > 0)
+            {
                 Console.WriteLine($"     xref-from: {string.Join(", ", f.XrefFrom.Take(8))}  ({f.XrefFrom.Count} sites)");
+            }
         }
     }
 
@@ -210,7 +221,10 @@ static async Task<int> Run(GhidraClient ghidra, Dictionary<string, string> opts,
         {
             var callers = funcs.Where(f => f.Calls.Contains(callee)).OrderBy(f => f.Name).ToList();
             Console.WriteLine($"[linq] {callers.Count} functions call \"{callee}\":");
-            foreach (var f in callers.Take(10)) Console.WriteLine($"  {f.EntryPoint}  {f.Name}");
+            foreach (var f in callers.Take(10))
+            {
+                Console.WriteLine($"  {f.EntryPoint}  {f.Name}");
+            }
         }
     }
 
@@ -241,7 +255,10 @@ static async Task<int> Run(GhidraClient ghidra, Dictionary<string, string> opts,
     {
         var at = await ghidra.GetSymbolsAtAsync(symAddr);
         Console.WriteLine($"[symbols-at {symAddr}] {at.Count}:");
-        foreach (var s in at) Console.WriteLine($"  {s.Name}  [{s.SymbolType}, {s.Source}{(s.IsPrimary ? ", primary" : "")}]");
+        foreach (var s in at)
+        {
+            Console.WriteLine($"  {s.Name}  [{s.SymbolType}, {s.Source}{(s.IsPrimary ? ", primary" : "")}]");
+        }
     }
 
     if (opts.TryGetValue("rename-at", out var renAddr) && opts.TryGetValue("to", out var newName))
@@ -313,8 +330,15 @@ static async Task<int> Run(GhidraClient ghidra, Dictionary<string, string> opts,
     {
         var output = await ghidra.RunScriptAsync(scriptPath);
         Console.WriteLine($"[run-script] {scriptPath}:");
-        if (output.Stdout.Length > 0) Console.Write(output.Stdout);
-        if (output.Stderr.Length > 0) Console.Error.Write(output.Stderr);
+        if (output.Stdout.Length > 0)
+        {
+            Console.Write(output.Stdout);
+        }
+
+        if (output.Stderr.Length > 0)
+        {
+            Console.Error.Write(output.Stderr);
+        }
     }
 
     if (opts.TryGetValue("comments", out var comAddr))
@@ -340,7 +364,10 @@ static async Task<int> Run(GhidraClient ghidra, Dictionary<string, string> opts,
     {
         var bms = await ghidra.GetBookmarksAsync(bmAddr);
         Console.WriteLine($"[bookmarks {bmAddr}] {bms.Count}:");
-        foreach (var b in bms) Console.WriteLine($"  [{b.Type}/{b.Category}] {b.Comment}");
+        foreach (var b in bms)
+        {
+            Console.WriteLine($"  [{b.Type}/{b.Category}] {b.Comment}");
+        }
     }
 
     if (opts.TryGetValue("instr-detail", out var idAddr))
@@ -388,7 +415,10 @@ static async Task<int> Run(GhidraClient ghidra, Dictionary<string, string> opts,
 
         var perSec = (ok + fail) / Math.Max(1.0, sw.Elapsed.TotalSeconds);
         Console.WriteLine($"[batch] decompiled {ok} ok / {fail} failed in {sw.ElapsedMilliseconds} ms ({perSec:F0} func/s)");
-        if (dumpPath is not null) Console.WriteLine($"[batch] dump -> {dumpPath}");
+        if (dumpPath is not null)
+        {
+            Console.WriteLine($"[batch] dump -> {dumpPath}");
+        }
     }
 
     return 0;
@@ -399,7 +429,11 @@ static Dictionary<string, string> ParseArgs(string[] argv)
     var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     for (var i = 0; i < argv.Length; i++)
     {
-        if (!argv[i].StartsWith("--", StringComparison.Ordinal)) continue;
+        if (!argv[i].StartsWith("--", StringComparison.Ordinal))
+        {
+            continue;
+        }
+
         var key = argv[i][2..];
         var value = i + 1 < argv.Length && !argv[i + 1].StartsWith("--", StringComparison.Ordinal)
             ? argv[++i]

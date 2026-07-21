@@ -221,11 +221,9 @@ internal sealed class HappyFake : ProtoSvc.GhidraSharpServiceBase
             Repeatable = "",
         });
 
-    public override Task<AckReply> SetComment(SetCommentRequest request, ServerCallContext context)
-    {
+    public override Task<AckReply> SetComment(SetCommentRequest request, ServerCallContext context) =>
         // echo the type back so the test can assert the enum->wire-string mapping
-        return Task.FromResult(new AckReply { Success = true, Error = request.Type });
-    }
+        Task.FromResult(new AckReply { Success = true, Error = request.Type });
 
     public override Task<BookmarksReply> GetBookmarks(BookmarksRequest request, ServerCallContext context)
     {
@@ -245,7 +243,7 @@ internal sealed class HappyFake : ProtoSvc.GhidraSharpServiceBase
         Task.FromResult(new RunScriptReply { Success = true, Stdout = "hello from script", Stderr = "" });
 
     public override Task<ReadBytesReply> ReadBytes(ReadBytesRequest request, ServerCallContext context) =>
-        Task.FromResult(new ReadBytesReply { Success = true, Data = ByteString.CopyFrom(0xDE, 0xAD), Address = "00001000" });
+        Task.FromResult(new ReadBytesReply { Success = true, Data = ByteString.CopyFrom("ޭ"u8.ToArray()), Address = "00001000" });
 
     public override Task<ListLanguagesReply> ListLanguages(ListLanguagesRequest request, ServerCallContext context) =>
         Task.FromResult(new ListLanguagesReply

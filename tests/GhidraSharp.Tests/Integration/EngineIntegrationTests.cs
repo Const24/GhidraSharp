@@ -82,7 +82,11 @@ public sealed class IntegrationFixture : IAsyncLifetime
     private static async Task<bool> RunAsync(string exe, string[] args)
     {
         var psi = new ProcessStartInfo(exe) { UseShellExecute = false, RedirectStandardError = true };
-        foreach (var a in args) psi.ArgumentList.Add(a);
+        foreach (var a in args)
+        {
+            psi.ArgumentList.Add(a);
+        }
+
         using var p = Process.Start(psi)!;
         await p.WaitForExitAsync();
         return p.ExitCode == 0;
@@ -92,7 +96,10 @@ public sealed class IntegrationFixture : IAsyncLifetime
     {
         try
         {
-            if (dir is not null && Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+            if (dir is not null && Directory.Exists(dir))
+            {
+                Directory.Delete(dir, recursive: true);
+            }
         }
         catch
         {

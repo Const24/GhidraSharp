@@ -36,8 +36,7 @@ var funcs = new List<GhidraFunction>();
 
 await Time("functions", async () =>
 {
-    funcs = (await g.ListFunctionsAsync(includeCalls: true))
-        .OrderBy(f => f.EntryPoint, StringComparer.Ordinal).ToList();
+    funcs = [.. (await g.ListFunctionsAsync(includeCalls: true)).OrderBy(f => f.EntryPoint, StringComparer.Ordinal)];
     var sb = new StringBuilder();
     foreach (var f in funcs)
     {
@@ -68,11 +67,18 @@ await Time("decompile", async () =>
     var results = new List<Decompilation>();
     await foreach (var d in g.DecompileManyAsync(all: true))
     {
-        if (d.IsSuccess) results.Add(d);
+        if (d.IsSuccess)
+        {
+            results.Add(d);
+        }
     }
     results.Sort((a, b) => string.CompareOrdinal(a.EntryPoint, b.EntryPoint));
     var sb = new StringBuilder();
-    foreach (var d in results) sb.Append($">>> {d.EntryPoint}\n{d.CCode}");
+    foreach (var d in results)
+    {
+        sb.Append($">>> {d.EntryPoint}\n{d.CCode}");
+    }
+
     Write("decompile.txt", sb);
     return results.Count;
 });

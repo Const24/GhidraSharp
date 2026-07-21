@@ -95,7 +95,7 @@ public sealed class GhidraServer : IAsyncDisposable, IDisposable
         ArgumentNullException.ThrowIfNull(options);
         var launchArgs = BuildLaunchArgs(options);
 
-        int port = options.Port ?? FindFreePort();
+        var port = options.Port ?? FindFreePort();
 
         var psi = new ProcessStartInfo
         {
