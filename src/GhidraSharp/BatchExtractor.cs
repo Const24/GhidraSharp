@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -117,19 +116,23 @@ public static class BatchExtractor
             return basenameCounts[b] > 1 ? $"{b}_{ShortHash(p)}" : b;
         }
 
-        var byPath = new ConcurrentDictionary<string, BinaryExtractSummary>();
-        await pool.ForEachAsync(
-            paths,
-            async (client, path, token) => byPath[path] = await ExtractOneAsync(client, path, StemFor(path), outDir, options, token),
+        var byIndex = new BinaryExtractSummary?[paths.Count];
+        var results = await pool.ForEachAsync(
+            Enumerable.Range(0, paths.Count),
+            async (client, idx, token) => byIndex[idx] = await ExtractOneAsync(client, paths[idx], StemFor(paths[idx]), outDir, options, token),
             progress,
             ct).ConfigureAwait(false);
 
-        return [.. paths.Select(p =>
-            byPath.TryGetValue(p, out var s)
-                ? s
-                : new BinaryExtractSummary(p, StemFor(p), "", 0, 0, 0, 0, 0, "no result"))];
+        // A binary whose body threw has no summary of its own — build one from the pool's
+        // recorded error (the pool has already restarted the slot and retried once if the
+        // server process died; only an unhealable failure lands here).
+        return [.. results.Select((r, i) =>
+            byIndex[i] ?? new BinaryExtractSummary(
+                paths[i], StemFor(paths[i]), "", 0, 0, 0, 0, 0, r.Error?.Message ?? "no result"))];
     }
 
+    // Exceptions escape deliberately: the pool needs to see them to detect a dead server
+    // and restart the slot; RunAsync maps them into failure summaries afterwards.
     private static async Task<BinaryExtractSummary> ExtractOneAsync(
         GhidraClient client, string path, string name, string outDir, BatchExtractorOptions options, CancellationToken ct)
     {
@@ -197,8 +200,10 @@ public static class BatchExtractor
                     }
 
                     IReadOnlyList<GhidraReference> refs;
+                    // Some symbols (e.g. externals) carry addresses the reference query rejects —
+                    // skip those; transport failures (inner RpcException) escape to the pool.
                     try { refs = await client.GetReferencesToAsync(s.Address, ct).ConfigureAwait(false); }
-                    catch { continue; }
+                    catch (GhidraException ex) when (ex.InnerException is not Grpc.Core.RpcException) { continue; }
                     foreach (var r in refs)
                     {
                         var from = ParseHex(r.FromAddress);
@@ -212,36 +217,39 @@ public static class BatchExtractor
 
             return new BinaryExtractSummary(path, name, info.LanguageId, info.FunctionCount, okc, failc, syms.Count, anchorHits, null);
         }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            return new BinaryExtractSummary(path, name, "", 0, 0, 0, 0, 0, ex.Message);
-        }
         finally
         {
-            try { await client.CloseProgramAsync(ct).ConfigureAwait(false); } catch { /* best effort */ }
+            // Fresh bounded token: the batch's own token is typically already cancelled
+            // when cleanup runs, and the close is what releases the program's on-disk lock.
+            using var closeCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            try { await client.CloseProgramAsync(closeCts.Token).ConfigureAwait(false); } catch { /* best effort */ }
         }
     }
 
     private static string ContainingFunction(List<(ulong Entry, string Name, ulong Size)> ordered, ulong addr)
     {
-        // ordered ascending by Entry; the containing function is the last whose [Entry, Entry+Size) covers addr.
-        foreach (var (Entry, Name, Size) in ordered)
+        // ordered ascending by Entry, bodies assumed non-overlapping: the candidate is the
+        // function with the greatest Entry <= addr — it either covers addr or nothing does.
+        int lo = 0, hi = ordered.Count - 1, candidate = -1;
+        while (lo <= hi)
         {
-            if (Entry > addr)
+            var mid = lo + ((hi - lo) >> 1);
+            if (ordered[mid].Entry <= addr)
             {
-                break;
+                candidate = mid;
+                lo = mid + 1;
             }
-
-            if (addr < Entry + Size)
+            else
             {
-                return Name;
+                hi = mid - 1;
             }
         }
-        return "";
+        if (candidate < 0)
+        {
+            return "";
+        }
+        var (entry, name, size) = ordered[candidate];
+        return addr < entry + size ? name : "";
     }
 
     private static string ShortHash(string s) =>

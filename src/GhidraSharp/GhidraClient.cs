@@ -35,7 +35,7 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
     private GhidraClient(GrpcChannel channel)
     {
         _channel = channel;
-        var invoker = channel.Intercept(new ServerUnavailableInterceptor());
+        var invoker = channel.Intercept(new MissingOrStaleServerInterceptor());
         _client = new ProtoSvc.GhidraSharpServiceClient(invoker);
     }
 
@@ -49,6 +49,9 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
     }
 
     /// <summary>Connect using an already-configured channel (custom credentials, handler, etc.).</summary>
+    /// <remarks>The client takes ownership: disposing it disposes <paramref name="channel"/>. Unlike
+    /// <see cref="Connect"/>, no <c>MaxReceiveMessageSize</c> is applied — configure the channel's
+    /// receive cap yourself or large list replies will fail with <c>ResourceExhausted</c>.</remarks>
     /// <param name="channel">A configured gRPC channel pointing at the server.</param>
     public static GhidraClient FromChannel(GrpcChannel channel)
         => new(channel ?? throw new ArgumentNullException(nameof(channel)));
@@ -77,23 +80,16 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
         return ToLanguages(reply);
     }
 
-    private static List<GhidraLanguage> ToLanguages(ListLanguagesReply reply)
-    {
-        var list = new List<GhidraLanguage>(reply.Languages.Count);
-        foreach (var l in reply.Languages)
+    private static List<GhidraLanguage> ToLanguages(ListLanguagesReply reply) =>
+        [.. reply.Languages.Select(l => new GhidraLanguage
         {
-            list.Add(new GhidraLanguage
-            {
-                Id = l.Id,
-                Processor = l.Processor,
-                Endian = l.Endian,
-                Size = l.Size,
-                Variant = l.Variant,
-                Description = l.Description,
-            });
-        }
-        return list;
-    }
+            Id = l.Id,
+            Processor = l.Processor,
+            Endian = l.Endian,
+            Size = l.Size,
+            Variant = l.Variant,
+            Description = l.Description,
+        })];
 
     /// <summary>
     /// List the current program's memory blocks / sections — name, address range, size and
@@ -110,22 +106,17 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
         {
             throw new GhidraException($"ListMemoryBlocks failed: {reply.Error}");
         }
-        var list = new List<GhidraMemoryBlock>(reply.Blocks.Count);
-        foreach (var b in reply.Blocks)
+        return [.. reply.Blocks.Select(b => new GhidraMemoryBlock
         {
-            list.Add(new GhidraMemoryBlock
-            {
-                Name = b.Name,
-                Start = b.Start,
-                End = b.End,
-                Size = b.Size,
-                Initialized = b.Initialized,
-                Read = b.Read,
-                Write = b.Write,
-                Execute = b.Execute,
-            });
-        }
-        return list;
+            Name = b.Name,
+            Start = b.Start,
+            End = b.End,
+            Size = b.Size,
+            Initialized = b.Initialized,
+            Read = b.Read,
+            Write = b.Write,
+            Execute = b.Execute,
+        })];
     }
 
     /// <summary>
@@ -328,7 +319,7 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(address);
         var reply = await _client.GetReferencesToAsync(new ReferencesRequest { Address = address }, cancellationToken: ct);
-        return ToReferences(reply);
+        return ToReferences(reply, "GetReferencesTo");
     }
 
     /// <summary>
@@ -342,7 +333,7 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(address);
         var reply = await _client.GetReferencesFromAsync(new ReferencesRequest { Address = address }, cancellationToken: ct);
-        return ToReferences(reply);
+        return ToReferences(reply, "GetReferencesFrom");
     }
 
     /// <summary>
@@ -351,11 +342,12 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
     /// </summary>
     /// <param name="address">A function entry or any address inside it (hex).</param>
     /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="GhidraException">No program is open, or the address is not inside a function.</exception>
     public async Task<IReadOnlyList<GhidraReference>> GetFunctionReferencesAsync(string address, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(address);
         var reply = await _client.GetFunctionReferencesAsync(new ReferencesRequest { Address = address }, cancellationToken: ct);
-        return ToReferences(reply);
+        return ToReferences(reply, "GetFunctionReferences");
     }
 
     /// <summary>
@@ -372,7 +364,7 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
     {
         var reply = await _client.ListSymbolsAsync(
             new ListSymbolsRequest { IncludeDynamic = includeDynamic, Name = name ?? "" }, cancellationToken: ct);
-        return ToSymbols(reply);
+        return ToSymbols(reply, "ListSymbols");
     }
 
     /// <summary>Symbols defined at <paramref name="address"/> (hex).</summary>
@@ -383,7 +375,7 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(address);
         var reply = await _client.GetSymbolsAtAsync(new SymbolsAtRequest { Address = address }, cancellationToken: ct);
-        return ToSymbols(reply);
+        return ToSymbols(reply, "GetSymbolsAt");
     }
 
     /// <summary>
@@ -405,7 +397,7 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
             new FindStringsRequest { Substring = substring ?? "", Limit = limit }, cancellationToken: ct);
         if (!reply.Success)
         {
-            throw new GhidraException(reply.Error);
+            throw new GhidraException($"FindStrings failed: {reply.Error}");
         }
 
         return [.. reply.Strings.Select(s => new FoundString
@@ -566,7 +558,7 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(address);
         var reply = await _client.GetDataAtAsync(new DataAtRequest { Address = address }, cancellationToken: ct);
-        return ToDataItem(reply);
+        return ToDataItem(reply, "GetDataAt");
     }
 
     /// <summary>List data types known to the program (structs, enums, typedefs, …), optionally filtered by name.</summary>
@@ -605,7 +597,7 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(dataType);
         var reply = await _client.ApplyDataTypeAsync(
             new ApplyDataTypeRequest { Address = address, DataType = dataType }, cancellationToken: ct);
-        return ToDataItem(reply);
+        return ToDataItem(reply, "ApplyDataType");
     }
 
     /// <summary>
@@ -632,11 +624,11 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
         return new ScriptOutput { Stdout = reply.Stdout, Stderr = reply.Stderr };
     }
 
-    private static DataItem ToDataItem(DataReply reply)
+    private static DataItem ToDataItem(DataReply reply, string operation)
     {
         if (!reply.Success || reply.Data is null)
         {
-            throw new GhidraException($"Data request failed: {reply.Error}");
+            throw new GhidraException($"{operation} failed: {reply.Error}");
         }
         var d = reply.Data;
         return new DataItem
@@ -770,11 +762,11 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
         };
     }
 
-    private static List<GhidraSymbol> ToSymbols(ListSymbolsReply reply)
+    private static List<GhidraSymbol> ToSymbols(ListSymbolsReply reply, string operation)
     {
         if (!reply.Success)
         {
-            throw new GhidraException($"Symbols query failed: {reply.Error}");
+            throw new GhidraException($"{operation} failed: {reply.Error}");
         }
         return [.. reply.Symbols.Select(s => new GhidraSymbol
         {
@@ -806,11 +798,11 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
         Error = r.Error,
     };
 
-    private static List<GhidraReference> ToReferences(ReferencesReply reply)
+    private static List<GhidraReference> ToReferences(ReferencesReply reply, string operation)
     {
         if (!reply.Success)
         {
-            throw new GhidraException($"GetReferences failed: {reply.Error}");
+            throw new GhidraException($"{operation} failed: {reply.Error}");
         }
         return [.. reply.References.Select(r => new GhidraReference
         {

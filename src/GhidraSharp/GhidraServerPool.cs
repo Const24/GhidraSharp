@@ -24,7 +24,10 @@ public sealed class GhidraServerPool : IAsyncDisposable
 {
     private readonly GhidraServer[] _servers;
     private readonly GhidraServerOptions _serverOptions;
-    private int _disposed;
+    // Serializes slot replacement against disposal: a worker restarting a slot must never
+    // publish a fresh server after DisposeAsync has swept the array (an orphaned JVM).
+    private readonly SemaphoreSlim _lifecycle = new(1, 1);
+    private bool _disposed;
 
     private GhidraServerPool(GhidraServer[] servers, GhidraServerOptions serverOptions)
     {
@@ -166,16 +169,38 @@ public sealed class GhidraServerPool : IAsyncDisposable
     {
         var dead = _servers[slot];
         var fresh = await GhidraServer.StartAsync(_serverOptions, ct).ConfigureAwait(false);
-        _servers[slot] = fresh;
+        await _lifecycle.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+        try
+        {
+            if (_disposed)
+            {
+                try { await fresh.DisposeAsync().ConfigureAwait(false); } catch { /* best effort */ }
+                throw new ObjectDisposedException(nameof(GhidraServerPool));
+            }
+            _servers[slot] = fresh;
+        }
+        finally
+        {
+            _lifecycle.Release();
+        }
         try { await dead.DisposeAsync().ConfigureAwait(false); } catch { /* best effort */ }
     }
 
     /// <inheritdoc/>
     public async ValueTask DisposeAsync()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        await _lifecycle.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+        try
         {
-            return;
+            if (_disposed)
+            {
+                return;
+            }
+            _disposed = true;
+        }
+        finally
+        {
+            _lifecycle.Release();
         }
         foreach (var server in _servers)
         {

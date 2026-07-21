@@ -2,9 +2,8 @@ namespace Const24.GhidraSharp;
 
 // Public, documented result types for the GhidraSharp API. The gRPC wire types
 // (Const24.GhidraSharp.Protocol.*) are an implementation detail and never leak
-// out of GhidraClient; these hand-written records are what callers see, so they
-// get clean IntelliSense and names that read well both to a Ghidra user and to
-// a .NET developer who has never opened Ghidra.
+// out of GhidraClient; these hand-written records are what callers see, with
+// names meant to read well to a .NET developer who has never opened Ghidra.
 
 /// <summary>Information about the Ghidra instance the server is running.</summary>
 public sealed record ServerInfo
@@ -19,7 +18,7 @@ public sealed record ServerInfo
 
 /// <summary>
 /// Summary of an open <em>program</em> — Ghidra's term for a single loaded binary
-/// (here, one firmware image) together with its disassembly and analysis.
+/// together with its disassembly and analysis.
 /// </summary>
 public sealed record ProgramInfo
 {
@@ -307,6 +306,8 @@ public sealed record ScriptOutput
 }
 
 /// <summary>The kind of comment, matching Ghidra's comment types.</summary>
+// Member names travel verbatim as the wire value (SetCommentRequest.Type) —
+// renaming one compiles fine and breaks the server contract at runtime.
 public enum CommentType
 {
     /// <summary>End-of-line comment.</summary>

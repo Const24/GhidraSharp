@@ -10,9 +10,9 @@ public sealed class GhidraServerOptions
 {
     /// <summary>
     /// Path to an unzipped server distribution (the folder holding <c>lib/</c>). Leave
-    /// <c>null</c> to auto-detect: a <c>ghidrasharp-server</c> folder next to the app
-    /// (shipped by the <c>Const24.GhidraSharp.Server</c> package), else the
-    /// <c>GHIDRASHARP_SERVER_DIR</c> environment variable. Set explicitly only to override,
+    /// <c>null</c> to auto-detect: the <c>GHIDRASHARP_SERVER_DIR</c> environment variable,
+    /// else a <c>ghidrasharp-server</c> folder next to the app (shipped by the
+    /// <c>Const24.GhidraSharp.Server</c> package). Set explicitly only to override,
     /// or use <see cref="ArgFile"/> for a source build.
     /// </summary>
     public string? ServerDirectory { get; init; }
@@ -20,14 +20,18 @@ public sealed class GhidraServerOptions
     /// <summary>
     /// Path to the Java <c>@argfile</c> produced by the server's <c>writeServerArgs</c>
     /// Gradle task (classpath + main class) — for running from a source build. Set this
-    /// <b>or</b> <see cref="ServerDirectory"/>.
+    /// <b>or</b> <see cref="ServerDirectory"/>; an explicit <see cref="ArgFile"/> beats
+    /// the auto-detected directories.
     /// </summary>
     public string? ArgFile { get; init; }
 
     /// <summary>Java executable. Defaults to <c>$JAVA_HOME/bin/java</c>, else <c>java</c> on PATH.</summary>
     public string? JavaExe { get; init; }
 
-    /// <summary>Ghidra installation directory, passed as <c>GHIDRA_INSTALL_DIR</c>. Defaults to the server's own fallback.</summary>
+    /// <summary>Ghidra installation directory, passed as <c>GHIDRA_INSTALL_DIR</c>. Required for a
+    /// <see cref="ServerDirectory"/> (dist) launch: falls back to the <c>GHIDRA_INSTALL_DIR</c>
+    /// environment variable, else the launch throws. An <see cref="ArgFile"/> launch defers to
+    /// the server's own resolution.</summary>
     public string? GhidraInstallDir { get; init; }
 
     /// <summary>TCP port to serve on. <c>null</c> picks a free port automatically.</summary>
@@ -210,13 +214,14 @@ public sealed class GhidraServer : IAsyncDisposable, IDisposable
 
     internal static List<string> BuildLaunchArgs(GhidraServerOptions options)
     {
-        // JVM options MUST precede -cp / @argfile. -Xmx caps each server's heap so a pool of N servers has a
-        // predictable memory ceiling instead of the HotSpot default (¼ of physical RAM) × N.
+        // JVM options MUST precede -cp / @argfile.
         var args = JvmArgs(options);
-        var serverDir = ResolveServerDirectory(options);
-        if (serverDir is not null)
+
+        // Explicit options beat the ambient environment: GHIDRASHARP_SERVER_DIR is a fallback
+        // for "nothing configured", not an override of a configured launch.
+        if (!string.IsNullOrWhiteSpace(options.ServerDirectory))
         {
-            args.AddRange(BuildClasspathArgs(serverDir, options));
+            args.AddRange(BuildClasspathArgs(options.ServerDirectory, options));
             return args;
         }
         if (!string.IsNullOrWhiteSpace(options.ArgFile))
@@ -230,13 +235,22 @@ public sealed class GhidraServer : IAsyncDisposable, IDisposable
             args.Add("@" + argFile);
             return args;
         }
+        if (ResolveAmbientServerDirectory() is { } ambient)
+        {
+            args.AddRange(BuildClasspathArgs(ambient, options));
+            return args;
+        }
+
+        var env = Environment.GetEnvironmentVariable("GHIDRASHARP_SERVER_DIR");
+        var envHint = string.IsNullOrWhiteSpace(env)
+            ? ""
+            : $" GHIDRASHARP_SERVER_DIR is set ('{env}') but does not contain a lib/ folder.";
         throw new InvalidOperationException(
-            "No GhidraSharpServer found. Install the Const24.GhidraSharp.Server package (it ships one next " +
+            "No GhidraSharpServer found." + envHint + " Install the Const24.GhidraSharp.Server package (it ships one next " +
             "to your app), or download ghidrasharp-server from https://github.com/Const24/GhidraSharp/releases " +
             "and set GhidraServerOptions.ServerDirectory, or set ArgFile when building from source.");
     }
 
-    // JVM options that precede the classpath: the -Xmx cap (default 8 GB) plus any caller-supplied extras.
     private static List<string> JvmArgs(GhidraServerOptions options)
     {
         var args = new List<string>();
@@ -253,12 +267,18 @@ public sealed class GhidraServer : IAsyncDisposable, IDisposable
 
     // Resolve the server distribution: explicit ServerDirectory, else GHIDRASHARP_SERVER_DIR,
     // else a 'ghidrasharp-server' folder next to the app (dropped by Const24.GhidraSharp.Server).
+    // BuildLaunchArgs slots an explicit ArgFile between the explicit and ambient tiers.
     internal static string? ResolveServerDirectory(GhidraServerOptions options)
     {
         if (!string.IsNullOrWhiteSpace(options.ServerDirectory))
         {
             return Path.GetFullPath(options.ServerDirectory);
         }
+        return ResolveAmbientServerDirectory();
+    }
+
+    private static string? ResolveAmbientServerDirectory()
+    {
         var env = Environment.GetEnvironmentVariable("GHIDRASHARP_SERVER_DIR");
         if (!string.IsNullOrWhiteSpace(env) && IsServerDirectory(env))
         {
@@ -350,7 +370,8 @@ public sealed class GhidraServer : IAsyncDisposable, IDisposable
         }
     }
 
-    /// <inheritdoc/>
+    /// <summary>Kills the server immediately, without asking it to release the project's
+    /// on-disk lock first — prefer <see cref="DisposeAsync"/> (<c>await using</c>) where possible.</summary>
     public void Dispose()
     {
         Client.Dispose();
