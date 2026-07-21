@@ -69,7 +69,7 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
     /// <param name="nameContains">Optional case-insensitive filter over id / processor / description.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <exception cref="GhidraException">The server reported a failure.</exception>
-    public async Task<IReadOnlyList<GhidraLanguage>> ListLanguagesAsync(string nameContains = "", CancellationToken ct = default)
+    public async Task<IReadOnlyList<GhidraLanguage>> ListLanguagesAsync(string? nameContains = null, CancellationToken ct = default)
     {
         var reply = await _client.ListLanguagesAsync(
             new ListLanguagesRequest { NameContains = nameContains ?? "" }, cancellationToken: ct);
@@ -356,14 +356,14 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
     /// auto-generated ones (<c>FUN_*</c>, <c>DAT_*</c>, <c>LAB_*</c>).
     /// </summary>
     /// <param name="includeDynamic">Include auto-generated (dynamic) symbols.</param>
-    /// <param name="name">If given, return only symbols with this exact name.</param>
+    /// <param name="exactName">If given, return only symbols with this exact name (not a substring match).</param>
     /// <param name="ct">Cancellation token.</param>
     /// <exception cref="GhidraException">No program is open.</exception>
     public async Task<IReadOnlyList<GhidraSymbol>> ListSymbolsAsync(
-        bool includeDynamic = false, string? name = null, CancellationToken ct = default)
+        bool includeDynamic = false, string? exactName = null, CancellationToken ct = default)
     {
         var reply = await _client.ListSymbolsAsync(
-            new ListSymbolsRequest { IncludeDynamic = includeDynamic, Name = name ?? "" }, cancellationToken: ct);
+            new ListSymbolsRequest { IncludeDynamic = includeDynamic, Name = exactName ?? "" }, cancellationToken: ct);
         return ToSymbols(reply, "ListSymbols");
     }
 
@@ -476,7 +476,7 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
     /// <param name="maxInstructions">Maximum instructions to return; 0 returns the whole function containing the address (or a default cap when not inside one).</param>
     /// <param name="ct">Cancellation token.</param>
     /// <exception cref="GhidraException">No program is open, or the address is invalid.</exception>
-    public async Task<IReadOnlyList<Instruction>> GetInstructionsAsync(
+    public async Task<IReadOnlyList<GhidraInstruction>> GetInstructionsAsync(
         string address, int maxInstructions = 0, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(address);
@@ -486,7 +486,7 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
         {
             throw new GhidraException($"GetInstructions failed: {reply.Error}");
         }
-        return [.. reply.Instructions.Select(i => new Instruction
+        return [.. reply.Instructions.Select(i => new GhidraInstruction
         {
             Address = i.Address,
             Mnemonic = i.Mnemonic,
@@ -647,7 +647,7 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
     /// <param name="address">The address to read.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <exception cref="GhidraException">No program is open, or the address is invalid.</exception>
-    public async Task<Comments> GetCommentsAsync(string address, CancellationToken ct = default)
+    public async Task<GhidraComments> GetCommentsAsync(string address, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(address);
         var reply = await _client.GetCommentsAsync(new CommentsRequest { Address = address }, cancellationToken: ct);
@@ -655,7 +655,7 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
         {
             throw new GhidraException($"GetComments failed: {reply.Error}");
         }
-        return new Comments
+        return new GhidraComments
         {
             Eol = reply.Eol,
             Pre = reply.Pre,
@@ -727,7 +727,7 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
     /// <param name="address">The instruction's address.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <exception cref="GhidraException">No program is open, no instruction there, or invalid address.</exception>
-    public async Task<InstructionDetail> GetInstructionDetailAsync(string address, CancellationToken ct = default)
+    public async Task<GhidraInstructionDetail> GetInstructionDetailAsync(string address, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(address);
         var reply = await _client.GetInstructionDetailAsync(
@@ -737,7 +737,7 @@ public sealed class GhidraClient : IAsyncDisposable, IDisposable
             throw new GhidraException($"GetInstructionDetail failed: {reply.Error}");
         }
         var d = reply.Instruction;
-        return new InstructionDetail
+        return new GhidraInstructionDetail
         {
             Address = d.Address,
             Mnemonic = d.Mnemonic,

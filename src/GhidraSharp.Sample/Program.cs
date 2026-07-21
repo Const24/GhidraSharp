@@ -56,7 +56,7 @@ static void PrintUsage() =>
 
         Connect:   --server <url>                        (default http://127.0.0.1:50080)
                    --spawn [--serverdir <dir> | --argfile <path>] [--ghidra <install>]
-        Open:      --rom <binary|domainfile> [--project <gpr>] [--lang <id>] [--writable]
+        Open:      --binary <path|domainfile> [--project <gpr>] [--lang <id>] [--writable]
                    --create-project <binary> [--proj-loc <dir>] [--proj-name <n>] [--lang <id>]
         Explore:   --list [--calls <fn>] | --memory-blocks|--sections | --symbols | --symbols-at <a>
                    --find-string "<text>" | --xrefs <a> | --function <a> | --data <a> | --datatypes [<f>]
@@ -99,10 +99,10 @@ static async Task<int> RunBatch(Dictionary<string, string> opts)
     var progress = new Progress<PoolProgress>(p => Console.Error.WriteLine($"[batch] {p.Done}/{p.Total} done · {p.Failed} failed"));
     var results = await BatchExtractor.RunAsync(pool, paths, outDir, progress: progress);
 
-    Console.WriteLine("name\tlang\tfunctions\tdecompiled\tsymbols\tanchors\terror");
+    Console.WriteLine("stem\tlang\tfunctions\tdecompiled\tsymbols\tanchors\terror");
     foreach (var r in results)
     {
-        Console.WriteLine($"{r.Name}\t{r.LanguageId}\t{r.FunctionCount}\t{r.DecompiledOk}\t{r.SymbolCount}\t{r.AnchorHits}\t{r.Error}");
+        Console.WriteLine($"{r.OutputStem}\t{r.LanguageId}\t{r.FunctionCount}\t{r.DecompiledOk}\t{r.SymbolCount}\t{r.AnchorHits}\t{r.Error}");
     }
 
     Console.Error.WriteLine($"[batch] complete · {results.Count(r => r.Error is null)}/{results.Count} ok");
@@ -131,12 +131,12 @@ static async Task<int> Run(GhidraClient ghidra, Dictionary<string, string> opts,
             opts.GetValueOrDefault("lang", ""));
         Console.WriteLine($"[create-project] {created.Name} ({created.LanguageId}) functions={created.FunctionCount}");
     }
-    else if (opts.TryGetValue("rom", out var rom))
+    else if (opts.TryGetValue("binary", out var binary))
     {
         try
         {
             var program = await ghidra.OpenProgramAsync(
-                rom,
+                binary,
                 projectPath: opts.GetValueOrDefault("project", ""),
                 languageId: opts.GetValueOrDefault("lang", ""),
                 writable: opts.ContainsKey("writable"));

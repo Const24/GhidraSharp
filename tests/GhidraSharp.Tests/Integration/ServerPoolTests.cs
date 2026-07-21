@@ -42,7 +42,7 @@ public sealed class ServerPoolTests
             progress);
 
         Assert.Equal(6, results.Count);
-        Assert.All(results, r => Assert.True(r.Ok));
+        Assert.All(results, r => Assert.True(r.IsSuccess));
         Assert.Equal(new PoolProgress(6, 6, 0), progress.Last);
     }
 
@@ -64,9 +64,9 @@ public sealed class ServerPoolTests
             }
         });
 
-        Assert.Equal(3, results.Count(r => r.Ok));   // odd items
-        Assert.Equal(3, results.Count(r => !r.Ok));  // even items threw
-        Assert.All(results.Where(r => !r.Ok), r => Assert.IsType<InvalidOperationException>(r.Error));
+        Assert.Equal(3, results.Count(r => r.IsSuccess));   // odd items
+        Assert.Equal(3, results.Count(r => !r.IsSuccess));  // even items threw
+        Assert.All(results.Where(r => !r.IsSuccess), r => Assert.IsType<InvalidOperationException>(r.Error));
     }
 
     [SkippableFact]
@@ -91,7 +91,7 @@ public sealed class ServerPoolTests
 
         Assert.True(killed);
         Assert.Equal(4, results.Count);
-        Assert.All(results, r => Assert.True(r.Ok)); // item 1 succeeds after restart
+        Assert.All(results, r => Assert.True(r.IsSuccess)); // item 1 succeeds after restart
     }
 
     [SkippableFact]

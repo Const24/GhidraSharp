@@ -3,7 +3,7 @@ using System.Threading.Channels;
 namespace Const24.GhidraSharp;
 
 /// <summary>Per-item outcome of a <see cref="GhidraServerPool.ForEachAsync{T}"/> batch.</summary>
-public readonly record struct PoolResult<T>(T Item, bool Ok, Exception? Error);
+public readonly record struct PoolResult<T>(T Item, bool IsSuccess, Exception? Error);
 
 /// <summary>Progress snapshot for an in-flight pool batch (for <see cref="IProgress{T}"/>).</summary>
 public readonly record struct PoolProgress(int Done, int Total, int Failed);
@@ -112,7 +112,7 @@ public sealed class GhidraServerPool : IAsyncDisposable
                     results[idx] = result;
 
                     var d = Interlocked.Increment(ref done);
-                    var f = result.Ok ? Volatile.Read(ref failed) : Interlocked.Increment(ref failed);
+                    var f = result.IsSuccess ? Volatile.Read(ref failed) : Interlocked.Increment(ref failed);
                     progress?.Report(new PoolProgress(d, total, f));
                 }
             }

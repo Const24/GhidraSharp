@@ -8,7 +8,7 @@ namespace Const24.GhidraSharp;
 /// One binary's outcome from a <see cref="BatchExtractor"/> run.
 /// </summary>
 /// <param name="Path">The source binary path.</param>
-/// <param name="Name">The binary's file name (used as the output-file stem).</param>
+/// <param name="OutputStem">The output-file stem: the binary's file name, plus a short path-hash suffix when two inputs share a name.</param>
 /// <param name="LanguageId">Ghidra language id detected on import (empty on failure).</param>
 /// <param name="FunctionCount">Number of functions Ghidra defined.</param>
 /// <param name="DecompiledOk">Functions decompiled successfully.</param>
@@ -18,44 +18,64 @@ namespace Const24.GhidraSharp;
 /// <param name="Error">Failure message, or <c>null</c> on success.</param>
 public sealed record BinaryExtractSummary(
     string Path,
-    string Name,
+    string OutputStem,
     string LanguageId,
     int FunctionCount,
     int DecompiledOk,
     int DecompiledFailed,
     int SymbolCount,
     int AnchorHits,
-    string? Error);
+    string? Error)
+{
+    /// <summary>Whether this binary was extracted without error — the success signal, matching
+    /// <see cref="PoolResult{T}.IsSuccess"/>; <see cref="Error"/> carries the reason when false.</summary>
+    public bool IsSuccess => Error is null;
+}
 
 /// <summary>
-/// Options controlling what <see cref="BatchExtractor"/> emits per binary.
+/// Options controlling what <see cref="BatchExtractor"/> emits per binary. Each of the three
+/// artifacts is independently toggleable; the two with their own knobs group them here.
 /// </summary>
 public sealed record BatchExtractorOptions
 {
-    /// <summary>Emit a whole-binary C decompile to <c>&lt;name&gt;.c</c>.</summary>
-    public bool Decompile { get; init; } = true;
+    /// <summary>Whole-binary C decompile to <c>&lt;stem&gt;.c</c> — whether to emit it and its per-function timeout.</summary>
+    public DecompileOptions Decompile { get; init; } = new();
 
-    /// <summary>Emit the symbol table to <c>&lt;name&gt;.symbols.tsv</c> (the naming oracle: address → name → type → source).</summary>
+    /// <summary>Emit the symbol table to <c>&lt;stem&gt;.symbols.tsv</c> (the naming oracle: address → name → type → source).</summary>
     public bool Symbols { get; init; } = true;
 
-    /// <summary>
-    /// Emit mechanical data-path coverage to <c>&lt;name&gt;.anchors.tsv</c>: for every symbol whose name contains an
-    /// entry of <see cref="AnchorApis"/>, list each referencing call site and the function that contains it. This is a
-    /// deterministic "did I find every data-path function?" check that does not depend on a model's judgement.
-    /// </summary>
-    public bool AnchorCoverage { get; init; } = true;
+    /// <summary>Mechanical data-path coverage in <c>&lt;stem&gt;.anchors.tsv</c> — whether to emit it and which APIs count as anchors.</summary>
+    public AnchorOptions Anchors { get; init; } = new();
+}
+
+/// <summary>Whole-binary decompile settings for <see cref="BatchExtractor"/>.</summary>
+public sealed record DecompileOptions
+{
+    /// <summary>Emit a whole-binary C decompile to <c>&lt;stem&gt;.c</c>.</summary>
+    public bool Enabled { get; init; } = true;
 
     /// <summary>Per-function decompiler timeout in seconds (0 = server default).</summary>
-    public int DecompileTimeoutSeconds { get; init; }
+    public int TimeoutSeconds { get; init; }
+}
+
+/// <summary>Anchor-API coverage settings for <see cref="BatchExtractor"/>.</summary>
+public sealed record AnchorOptions
+{
+    /// <summary>
+    /// Emit mechanical data-path coverage to <c>&lt;stem&gt;.anchors.tsv</c>: for every symbol whose name contains an
+    /// entry of <see cref="Apis"/>, list each referencing call site and the function that contains it. This is a
+    /// deterministic "did I find every data-path function?" check that does not depend on a model's judgement.
+    /// </summary>
+    public bool Enabled { get; init; } = true;
 
     /// <summary>
     /// API-name fragments that mark a data path (file I/O, crypto, registry, sockets, J2534). A symbol counts as an
     /// anchor when its name contains any of these (case-insensitive).
     /// </summary>
-    public IReadOnlyCollection<string> AnchorApis { get; init; } = DefaultAnchorApis;
+    public IReadOnlyCollection<string> Apis { get; init; } = DefaultApis;
 
     /// <summary>The default anchor-API set: file I/O + WinCrypt + registry + sockets + J2534 PassThru.</summary>
-    public static readonly IReadOnlyCollection<string> DefaultAnchorApis =
+    public static readonly IReadOnlyCollection<string> DefaultApis =
     [
         "CreateFile", "ReadFile", "WriteFile", "fopen", "fread", "fwrite", "_read", "MapViewOfFile", "GetModuleFileName",
         "CryptDecrypt", "CryptEncrypt", "CryptDeriveKey", "CryptAcquireContext", "CryptCreateHash", "CryptHashData",
@@ -142,7 +162,7 @@ public static class BatchExtractor
             var funcs = await client.ListFunctionsAsync(includeCalls: false, ct).ConfigureAwait(false);
 
             // Symbols are needed for both the oracle and the anchor scan — fetch once.
-            var syms = options.Symbols || options.AnchorCoverage
+            var syms = options.Symbols || options.Anchors.Enabled
                 ? await client.ListSymbolsAsync(includeDynamic: false, ct: ct).ConfigureAwait(false)
                 : [];
 
@@ -159,13 +179,13 @@ public static class BatchExtractor
 
             var okc = 0;
             var failc = 0;
-            if (options.Decompile)
+            if (options.Decompile.Enabled)
             {
                 var sb = new StringBuilder();
                 sb.Append("// ").Append(name).Append(" (").Append(info.LanguageId)
                   .Append(") base=0x").Append(info.ImageBase.ToString("x", CultureInfo.InvariantCulture))
                   .Append(" functions=").Append(info.FunctionCount).Append('\n').Append('\n');
-                await foreach (var d in client.DecompileManyAsync(all: true, timeoutSeconds: options.DecompileTimeoutSeconds, ct: ct).ConfigureAwait(false))
+                await foreach (var d in client.DecompileManyAsync(all: true, timeoutSeconds: options.Decompile.TimeoutSeconds, ct: ct).ConfigureAwait(false))
                 {
                     if (d.IsSuccess)
                     {
@@ -182,7 +202,7 @@ public static class BatchExtractor
             }
 
             var anchorHits = 0;
-            if (options.AnchorCoverage)
+            if (options.Anchors.Enabled)
             {
                 var ordered = funcs
                     .Select(f => (Entry: ParseHex(f.EntryPoint), f.Name, f.Size))
@@ -194,7 +214,7 @@ public static class BatchExtractor
                 var sb = new StringBuilder("api\tapi_addr\tcall_site\tcontaining_fn\n");
                 foreach (var s in syms)
                 {
-                    if (!options.AnchorApis.Any(a => s.Name.Contains(a, StringComparison.OrdinalIgnoreCase)))
+                    if (!options.Anchors.Apis.Any(a => s.Name.Contains(a, StringComparison.OrdinalIgnoreCase)))
                     {
                         continue;
                     }

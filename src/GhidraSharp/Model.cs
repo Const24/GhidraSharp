@@ -1,9 +1,9 @@
 namespace Const24.GhidraSharp;
 
-// Public, documented result types for the GhidraSharp API. The gRPC wire types
-// (Const24.GhidraSharp.Protocol.*) are an implementation detail and never leak
-// out of GhidraClient; these hand-written records are what callers see, with
-// names meant to read well to a .NET developer who has never opened Ghidra.
+// Public, documented result types for the GhidraSharp API — the whole public
+// surface. The gRPC wire types (Const24.GhidraSharp.Protocol.*) never leak out
+// of GhidraClient. A record carries a Ghidra* prefix only where its bare name
+// would collide in a consumer's namespace (Function, Symbol, Instruction, ...).
 
 /// <summary>Information about the Ghidra instance the server is running.</summary>
 public sealed record ServerInfo
@@ -157,7 +157,7 @@ public sealed record GhidraSymbol
 }
 
 /// <summary>A single disassembled machine instruction from the program listing.</summary>
-public sealed record Instruction
+public sealed record GhidraInstruction
 {
     /// <summary>The instruction's address, as hex.</summary>
     public required string Address { get; init; }
@@ -327,7 +327,7 @@ public enum CommentType
 }
 
 /// <summary>The comments of every type at an address.</summary>
-public sealed record Comments
+public sealed record GhidraComments
 {
     /// <summary>End-of-line comment (empty if none).</summary>
     public required string Eol { get; init; }
@@ -401,7 +401,7 @@ public sealed record PcodeOp
 /// deeper decompiler IR (high PCode / HighFunction) is intentionally not bridged —
 /// reach it with <see cref="GhidraClient.RunScriptAsync"/>.
 /// </summary>
-public sealed record InstructionDetail
+public sealed record GhidraInstructionDetail
 {
     /// <summary>The instruction's address, as hex.</summary>
     public required string Address { get; init; }

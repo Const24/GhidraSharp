@@ -135,7 +135,7 @@ var results = await pool.ForEachAsync(romPaths, async (ghidra, rom, ct) =>
     // ... decompile / extract on this server
 }, progress: new Progress<PoolProgress>(p => Console.WriteLine($"{p.Done}/{p.Total} ({p.Failed} failed)")));
 
-foreach (var f in results.Where(r => !r.Ok))
+foreach (var f in results.Where(r => !r.IsSuccess))
     Console.WriteLine($"FAILED {f.Item}: {f.Error?.Message}");
 ```
 
