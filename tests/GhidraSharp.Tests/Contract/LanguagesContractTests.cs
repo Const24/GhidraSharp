@@ -1,6 +1,6 @@
 namespace Const24.GhidraSharp.Tests.Contract;
 
-public class LanguagesContractTests(HappyServerFixture fixture) : IClassFixture<HappyServerFixture>
+public sealed class LanguagesContractTests(HappyServerFixture fixture) : IClassFixture<HappyServerFixture>
 {
     private GhidraClient Client => fixture.Client;
 

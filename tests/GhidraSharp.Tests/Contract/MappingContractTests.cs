@@ -1,3 +1,5 @@
+using Grpc.Net.Client;
+
 namespace Const24.GhidraSharp.Tests.Contract;
 
 /// <summary>
@@ -15,6 +17,14 @@ public sealed class MappingContractTests(HappyServerFixture fixture) : IClassFix
         var info = await Client.PingAsync();
         Assert.Equal("test-version", info.GhidraVersion);
         Assert.Equal("test-server", info.ServerVersion);
+    }
+
+    [Fact]
+    public async Task FromChannel_talks_over_a_caller_supplied_channel()
+    {
+        using var channel = GrpcChannel.ForAddress(fixture.Url);
+        await using var client = GhidraClient.FromChannel(channel);
+        Assert.Equal("test-version", (await client.PingAsync()).GhidraVersion);
     }
 
     [Fact]
@@ -69,6 +79,27 @@ public sealed class MappingContractTests(HappyServerFixture fixture) : IClassFix
         Assert.Equal(2, fn.ParameterCount);
         Assert.Equal(["callee_a", "callee_b"], fn.Calls);
     }
+
+    [Fact]
+    public async Task DecompileByName_maps_result()
+    {
+        var d = await Client.DecompileByNameAsync("fn");
+        Assert.True(d.IsSuccess);
+        Assert.Equal("void fn(void)", d.Signature);
+        Assert.Equal("00001000", d.EntryPoint);
+    }
+
+    [Fact]
+    public async Task GetFunctionByName_maps_detail()
+    {
+        var f = await Client.GetFunctionByNameAsync("fn1");
+        Assert.Equal("int fn1(int p)", f.Signature);
+        Assert.Equal("00001000", f.EntryPoint);
+    }
+
+    [Fact]
+    public async Task RenameSymbolByName_does_not_throw_on_success() =>
+        await Client.RenameSymbolByNameAsync("oldName", "newName");
 
     [Fact]
     public async Task GetFunction_maps_detail_params_locals_callers()
@@ -148,7 +179,9 @@ public sealed class MappingContractTests(HappyServerFixture fixture) : IClassFix
     public async Task ReadBytes_maps_to_byte_array()
     {
         var bytes = await Client.ReadBytesAsync("0x1000", 2);
-        Assert.Equal("ޭ"u8.ToArray(), bytes);
+#pragma warning disable IDE0230 // a u8 literal ("ޭ") would hide that the expected bytes are DE AD
+        Assert.Equal(new byte[] { 0xDE, 0xAD }, bytes);
+#pragma warning restore IDE0230
     }
 
     [Fact]

@@ -1,23 +1,15 @@
 using Const24.GhidraSharp;
 
 // Smoke / demo client for the GhidraSharp bridge — exercises most of the API.
-//
-// Connect:   --server http://127.0.0.1:50080   (default)
-//            --spawn [--serverdir <dir> | --argfile <path>] [--ghidra <install>]
-// Open:      --rom <binary|domainfile> [--project <gpr>] [--lang <id>] [--writable]
-//            --create-project <binary> [--proj-loc <dir>] [--proj-name <n>] [--lang <id>]
-// Explore:   --list [--calls <fn>] · --memory-blocks|--sections · --symbols · --symbols-at <a>
-//            --find-string "<text>" · --xrefs <a> · --function <a> · --data <a> · --datatypes [<f>]
-//            --bytes <a> [--len N] · --disasm <a> [--count N] · --instr-detail <a>
-// Decompile: --addr <a> | --name <fn> [--context] · --decompile-all [--dump <file>]
-// Mutate:    --rename-at <a> --to <name> · --apply-type <a> --type <t> · --save
-//            --set-comment <a> [--comment-type <t>] [--comment-text <s>] · --set-bookmark <a>
-// Scripts:   --run-script <path>
-// Batch:     --batch --paths <file|dir> [--out <dir>] [--pool N]   (fan a corpus across a server pool)
-//
-// --spawn starts (and stops) its own Java server; otherwise it connects to --server.
+// Run with no arguments (or --help) for the full flag reference.
 
 var opts = ParseArgs(args);
+
+if (args.Length == 0 || opts.ContainsKey("help"))
+{
+    PrintUsage();
+    return 0;
+}
 
 // --batch: fan a set of binaries across a GhidraServerPool, emitting per-binary
 // <name>.c + <name>.symbols.tsv + <name>.anchors.tsv. Owns its own pool; returns early.
@@ -26,27 +18,24 @@ if (opts.ContainsKey("batch"))
     return await RunBatch(opts);
 }
 
-var server = opts.GetValueOrDefault("server", "http://127.0.0.1:50080");
+var serverUrl = opts.GetValueOrDefault("server", "http://127.0.0.1:50080");
 
 GhidraServer? spawned = null;
 GhidraClient ghidra;
 if (opts.ContainsKey("spawn"))
 {
-    var startOpts = opts.TryGetValue("serverdir", out var serverDir)
-        ? new GhidraServerOptions { ServerDirectory = serverDir, GhidraInstallDir = opts.GetValueOrDefault("ghidra") }
-        : new GhidraServerOptions { ArgFile = opts.GetValueOrDefault("argfile", "server/build/ghidrasharp-java.args"), GhidraInstallDir = opts.GetValueOrDefault("ghidra") };
-    spawned = await GhidraServer.StartAsync(startOpts);
+    spawned = await GhidraServer.StartAsync(SpawnOptions(opts));
     Console.WriteLine($"[spawn] server started on port {spawned.Port}");
     ghidra = spawned.Client;
 }
 else
 {
-    ghidra = GhidraClient.Connect(server);
+    ghidra = GhidraClient.Connect(serverUrl);
 }
 
 try
 {
-    return await Run(ghidra, opts, server);
+    return await Run(ghidra, opts, serverUrl);
 }
 finally
 {
@@ -59,6 +48,36 @@ finally
         await ghidra.DisposeAsync();
     }
 }
+
+static void PrintUsage() =>
+    Console.WriteLine(
+        """
+        GhidraSharp sample — smoke / demo client for the GhidraSharp bridge.
+
+        Connect:   --server <url>                        (default http://127.0.0.1:50080)
+                   --spawn [--serverdir <dir> | --argfile <path>] [--ghidra <install>]
+        Open:      --rom <binary|domainfile> [--project <gpr>] [--lang <id>] [--writable]
+                   --create-project <binary> [--proj-loc <dir>] [--proj-name <n>] [--lang <id>]
+        Explore:   --list [--calls <fn>] | --memory-blocks|--sections | --symbols | --symbols-at <a>
+                   --find-string "<text>" | --xrefs <a> | --function <a> | --data <a> | --datatypes [<f>]
+                   --bytes <a> [--len N] | --disasm <a> [--count N] | --instr-detail <a>
+                   --comments <a> | --bookmarks <a>
+        Decompile: --addr <a> | --name <fn> [--context] | --decompile-all [--dump <file>]
+        Mutate:    --rename-at <a> --to <name> | --apply-type <a> --type <t> | --save
+                   --set-comment <a> [--comment-type <t>] [--comment-text <s>]
+                   --set-bookmark <a> [--bookmark-text <s>]
+        Scripts:   --run-script <path>
+        Batch:     --batch --paths <file|dir> [--out <dir>] [--pool N]
+                   (a directory picks up *.dll and *.exe only; a file lists one path per line)
+
+        --spawn starts (and stops) its own Java server; otherwise it connects to --server.
+        """);
+
+// --serverdir launches an unzipped release dist; otherwise --argfile launches a source build.
+static GhidraServerOptions SpawnOptions(Dictionary<string, string> opts) =>
+    opts.TryGetValue("serverdir", out var serverDir)
+        ? new GhidraServerOptions { ServerDirectory = serverDir, GhidraInstallDir = opts.GetValueOrDefault("ghidra") }
+        : new GhidraServerOptions { ArgFile = opts.GetValueOrDefault("argfile", "server/build/ghidrasharp-java.args"), GhidraInstallDir = opts.GetValueOrDefault("ghidra") };
 
 static async Task<int> RunBatch(Dictionary<string, string> opts)
 {
@@ -75,12 +94,8 @@ static async Task<int> RunBatch(Dictionary<string, string> opts)
     var outDir = opts.GetValueOrDefault("out", "batch-out");
     var poolN = int.TryParse(opts.GetValueOrDefault("pool", "4"), out var n) ? n : 4;
 
-    var startOpts = opts.TryGetValue("serverdir", out var sd)
-        ? new GhidraServerOptions { ServerDirectory = sd, GhidraInstallDir = opts.GetValueOrDefault("ghidra") }
-        : new GhidraServerOptions { ArgFile = opts.GetValueOrDefault("argfile", "server/build/ghidrasharp-java.args"), GhidraInstallDir = opts.GetValueOrDefault("ghidra") };
-
     Console.Error.WriteLine($"[batch] {paths.Count} binaries · pool={poolN} · out={outDir}");
-    await using var pool = await GhidraServerPool.StartAsync(poolN, startOpts);
+    await using var pool = await GhidraServerPool.StartAsync(poolN, SpawnOptions(opts));
     var progress = new Progress<PoolProgress>(p => Console.Error.WriteLine($"[batch] {p.Done}/{p.Total} done · {p.Failed} failed"));
     var results = await BatchExtractor.RunAsync(pool, paths, outDir, progress: progress);
 
@@ -94,7 +109,7 @@ static async Task<int> RunBatch(Dictionary<string, string> opts)
     return 0;
 }
 
-static async Task<int> Run(GhidraClient ghidra, Dictionary<string, string> opts, string server)
+static async Task<int> Run(GhidraClient ghidra, Dictionary<string, string> opts, string serverUrl)
 {
     try
     {
@@ -103,7 +118,7 @@ static async Task<int> Run(GhidraClient ghidra, Dictionary<string, string> opts,
     }
     catch (Exception ex)
     {
-        Console.Error.WriteLine($"[ping] could not reach server at {server}: {ex.Message}");
+        Console.Error.WriteLine($"[ping] could not reach server at {serverUrl}: {ex.Message}");
         return 1;
     }
 
@@ -264,10 +279,10 @@ static async Task<int> Run(GhidraClient ghidra, Dictionary<string, string> opts,
     if (opts.TryGetValue("rename-at", out var renAddr) && opts.TryGetValue("to", out var newName))
     {
         var before = await ghidra.GetSymbolsAtAsync(renAddr);
-        Console.WriteLine($"[rename] {renAddr}: \"{before.FirstOrDefault()?.Name}\" -> \"{newName}\"");
+        Console.WriteLine($"[rename] {renAddr}: \"{(before.Count > 0 ? before[0].Name : null)}\" -> \"{newName}\"");
         await ghidra.RenameSymbolAtAsync(renAddr, newName);
         var after = await ghidra.GetSymbolsAtAsync(renAddr);
-        Console.WriteLine($"[rename] now: \"{after.FirstOrDefault()?.Name}\" (in-memory; not saved)");
+        Console.WriteLine($"[rename] now: \"{(after.Count > 0 ? after[0].Name : null)}\" (in-memory; not saved)");
     }
 
     if (opts.TryGetValue("bytes", out var bytesAddr))

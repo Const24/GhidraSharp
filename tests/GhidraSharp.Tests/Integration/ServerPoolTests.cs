@@ -94,6 +94,36 @@ public sealed class ServerPoolTests
         Assert.All(results, r => Assert.True(r.Ok)); // item 1 succeeds after restart
     }
 
+    [SkippableFact]
+    public async Task BatchExtractor_turns_pool_errors_into_failure_summaries_in_input_order()
+    {
+        var (ok, reason, argFile) = Gate();
+        Skip.IfNot(ok, reason);
+        using var _ = StubEngine();
+
+        // The stub engine fails OpenProgram, so every item takes the pool-error path:
+        // RunAsync must still yield one summary per input, in input order, carrying the
+        // error message the pool recorded.
+        var outDir = Directory.CreateTempSubdirectory("ghs_batch_").FullName;
+        string[] paths = ["first.bin", "second.bin", "third.bin"];
+        try
+        {
+            await using var pool = await GhidraServerPool.StartAsync(2, new GhidraServerOptions { ArgFile = argFile });
+            var summaries = await BatchExtractor.RunAsync(pool, paths, outDir);
+
+            Assert.Equal(paths, summaries.Select(s => s.Path));
+            Assert.All(summaries, s =>
+            {
+                Assert.NotNull(s.Error);
+                Assert.Contains("OpenProgram failed", s.Error, StringComparison.Ordinal);
+            });
+        }
+        finally
+        {
+            Directory.Delete(outDir, recursive: true);
+        }
+    }
+
     // --- gate + stub-engine scope ------------------------------------------------
 
     private static (bool ok, string reason, string argFile) Gate()
@@ -108,11 +138,20 @@ public sealed class ServerPoolTests
         return (true, "", argFile);
     }
 
-    private static IDisposable StubEngine()
+    private static StubEngineScope StubEngine() => new();
+
+    // Selects the stub engine and clears a developer's stale GHIDRASHARP_SERVER_DIR,
+    // so the pool always launches the source-built argfile server.
+    private sealed class StubEngineScope : IDisposable
     {
-        var prev = Environment.GetEnvironmentVariable("GHIDRASHARP_ENGINE");
-        Environment.SetEnvironmentVariable("GHIDRASHARP_ENGINE", "stub");
-        return new Restore(() => Environment.SetEnvironmentVariable("GHIDRASHARP_ENGINE", prev));
+        private readonly EnvVarScope _engine = new("GHIDRASHARP_ENGINE", "stub");
+        private readonly EnvVarScope _serverDir = new("GHIDRASHARP_SERVER_DIR", null);
+
+        public void Dispose()
+        {
+            _serverDir.Dispose();
+            _engine.Dispose();
+        }
     }
 
     private static string? FindRepoRoot()
@@ -123,10 +162,5 @@ public sealed class ServerPoolTests
             dir = dir.Parent;
         }
         return dir?.FullName;
-    }
-
-    private sealed class Restore(Action onDispose) : IDisposable
-    {
-        public void Dispose() => onDispose();
     }
 }

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Const24.GhidraSharp.Protocol;
 using Google.Protobuf;
 using Grpc.Core;
@@ -222,8 +223,7 @@ internal sealed class HappyFake : ProtoSvc.GhidraSharpServiceBase
         });
 
     public override Task<AckReply> SetComment(SetCommentRequest request, ServerCallContext context) =>
-        // echo the type back so the test can assert the enum->wire-string mapping
-        Task.FromResult(new AckReply { Success = true, Error = request.Type });
+        Task.FromResult(new AckReply { Success = true });
 
     public override Task<BookmarksReply> GetBookmarks(BookmarksRequest request, ServerCallContext context)
     {
@@ -243,7 +243,9 @@ internal sealed class HappyFake : ProtoSvc.GhidraSharpServiceBase
         Task.FromResult(new RunScriptReply { Success = true, Stdout = "hello from script", Stderr = "" });
 
     public override Task<ReadBytesReply> ReadBytes(ReadBytesRequest request, ServerCallContext context) =>
-        Task.FromResult(new ReadBytesReply { Success = true, Data = ByteString.CopyFrom("ޭ"u8.ToArray()), Address = "00001000" });
+#pragma warning disable IDE0230 // a u8 literal ("ޭ") would hide that the wire bytes are DE AD
+        Task.FromResult(new ReadBytesReply { Success = true, Data = ByteString.CopyFrom(0xDE, 0xAD), Address = "00001000" });
+#pragma warning restore IDE0230
 
     public override Task<ListLanguagesReply> ListLanguages(ListLanguagesRequest request, ServerCallContext context) =>
         Task.FromResult(new ListLanguagesReply
@@ -309,7 +311,7 @@ internal sealed class BigListFake : ProtoSvc.GhidraSharpServiceBase
         var name = new string('x', 1000); // 5000 * ~1 KB ≈ 5 MB, exceeds the 4 MB default
         for (var i = 0; i < Count; i++)
         {
-            reply.Functions.Add(new FunctionInfo { Name = name, EntryAddress = i.ToString("x8") });
+            reply.Functions.Add(new FunctionInfo { Name = name, EntryAddress = i.ToString("x8", CultureInfo.InvariantCulture) });
         }
         return Task.FromResult(reply);
     }
@@ -321,7 +323,8 @@ internal sealed class BareFake : ProtoSvc.GhidraSharpServiceBase
 {
 }
 
-/// <summary>A fake that fails every request, to exercise the client's error handling.</summary>
+/// <summary>A fake that fails every RPC with the same error, to exercise the client's
+/// error mapping across the whole surface.</summary>
 internal sealed class FailingFake : ProtoSvc.GhidraSharpServiceBase
 {
     private const string Boom = "boom";
@@ -329,27 +332,85 @@ internal sealed class FailingFake : ProtoSvc.GhidraSharpServiceBase
     public override Task<OpenProgramReply> OpenProgram(OpenProgramRequest request, ServerCallContext context) =>
         Task.FromResult(new OpenProgramReply { Success = false, Error = Boom });
 
+    public override Task<OpenProgramReply> CreateProject(CreateProjectRequest request, ServerCallContext context) =>
+        Task.FromResult(new OpenProgramReply { Success = false, Error = Boom });
+
+    public override Task<SaveProgramReply> SaveProgram(SaveProgramRequest request, ServerCallContext context) =>
+        Task.FromResult(new SaveProgramReply { Success = false, Error = Boom });
+
+    public override Task<AckReply> CloseProgram(CloseProgramRequest request, ServerCallContext context) =>
+        Task.FromResult(new AckReply { Success = false, Error = Boom });
+
     public override Task<DecompileReply> DecompileFunction(DecompileRequest request, ServerCallContext context) =>
         Task.FromResult(new DecompileReply { Success = false, Error = Boom });
+
+    public override async Task DecompileFunctions(DecompileFunctionsRequest request,
+        IServerStreamWriter<DecompileReply> responseStream, ServerCallContext context) =>
+        await responseStream.WriteAsync(new DecompileReply { Success = false, Error = Boom });
 
     public override Task<ListFunctionsReply> ListFunctions(ListFunctionsRequest request, ServerCallContext context) =>
         Task.FromResult(new ListFunctionsReply { Success = false, Error = Boom });
 
+    public override Task<FunctionDetailReply> GetFunction(FunctionRequest request, ServerCallContext context) =>
+        Task.FromResult(new FunctionDetailReply { Success = false, Error = Boom });
+
     public override Task<ReferencesReply> GetReferencesTo(ReferencesRequest request, ServerCallContext context) =>
+        Task.FromResult(new ReferencesReply { Success = false, Error = Boom });
+
+    public override Task<ReferencesReply> GetReferencesFrom(ReferencesRequest request, ServerCallContext context) =>
+        Task.FromResult(new ReferencesReply { Success = false, Error = Boom });
+
+    public override Task<ReferencesReply> GetFunctionReferences(ReferencesRequest request, ServerCallContext context) =>
         Task.FromResult(new ReferencesReply { Success = false, Error = Boom });
 
     public override Task<ListSymbolsReply> ListSymbols(ListSymbolsRequest request, ServerCallContext context) =>
         Task.FromResult(new ListSymbolsReply { Success = false, Error = Boom });
 
+    public override Task<ListSymbolsReply> GetSymbolsAt(SymbolsAtRequest request, ServerCallContext context) =>
+        Task.FromResult(new ListSymbolsReply { Success = false, Error = Boom });
+
+    public override Task<RenameSymbolReply> RenameSymbol(RenameSymbolRequest request, ServerCallContext context) =>
+        Task.FromResult(new RenameSymbolReply { Success = false, Error = Boom });
+
+    public override Task<FindStringsReply> FindStrings(FindStringsRequest request, ServerCallContext context) =>
+        Task.FromResult(new FindStringsReply { Success = false, Error = Boom });
+
+    public override Task<ReadBytesReply> ReadBytes(ReadBytesRequest request, ServerCallContext context) =>
+        Task.FromResult(new ReadBytesReply { Success = false, Error = Boom });
+
+    public override Task<InstructionsReply> GetInstructions(InstructionsRequest request, ServerCallContext context) =>
+        Task.FromResult(new InstructionsReply { Success = false, Error = Boom });
+
+    public override Task<InstructionDetailReply> GetInstructionDetail(InstructionDetailRequest request, ServerCallContext context) =>
+        Task.FromResult(new InstructionDetailReply { Success = false, Error = Boom });
+
     public override Task<DataReply> GetDataAt(DataAtRequest request, ServerCallContext context) =>
         Task.FromResult(new DataReply { Success = false, Error = Boom });
 
-    public override Task<FunctionDetailReply> GetFunction(FunctionRequest request, ServerCallContext context) =>
-        Task.FromResult(new FunctionDetailReply { Success = false, Error = Boom });
+    public override Task<DataReply> ApplyDataType(ApplyDataTypeRequest request, ServerCallContext context) =>
+        Task.FromResult(new DataReply { Success = false, Error = Boom });
+
+    public override Task<DataTypesReply> ListDataTypes(DataTypesRequest request, ServerCallContext context) =>
+        Task.FromResult(new DataTypesReply { Success = false, Error = Boom });
+
+    public override Task<CommentsReply> GetComments(CommentsRequest request, ServerCallContext context) =>
+        Task.FromResult(new CommentsReply { Success = false, Error = Boom });
+
+    public override Task<AckReply> SetComment(SetCommentRequest request, ServerCallContext context) =>
+        Task.FromResult(new AckReply { Success = false, Error = Boom });
+
+    public override Task<BookmarksReply> GetBookmarks(BookmarksRequest request, ServerCallContext context) =>
+        Task.FromResult(new BookmarksReply { Success = false, Error = Boom });
+
+    public override Task<AckReply> SetBookmark(SetBookmarkRequest request, ServerCallContext context) =>
+        Task.FromResult(new AckReply { Success = false, Error = Boom });
+
+    public override Task<ListMemoryBlocksReply> ListMemoryBlocks(ListMemoryBlocksRequest request, ServerCallContext context) =>
+        Task.FromResult(new ListMemoryBlocksReply { Success = false, Error = Boom });
+
+    public override Task<ListLanguagesReply> ListLanguages(ListLanguagesRequest request, ServerCallContext context) =>
+        Task.FromResult(new ListLanguagesReply { Success = false, Error = Boom });
 
     public override Task<RunScriptReply> RunScript(RunScriptRequest request, ServerCallContext context) =>
         Task.FromResult(new RunScriptReply { Success = false, Error = Boom });
-
-    public override Task<SaveProgramReply> SaveProgram(SaveProgramRequest request, ServerCallContext context) =>
-        Task.FromResult(new SaveProgramReply { Success = false, Error = Boom });
 }

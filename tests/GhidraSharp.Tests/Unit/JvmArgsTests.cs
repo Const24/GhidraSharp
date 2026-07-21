@@ -4,8 +4,10 @@ namespace Const24.GhidraSharp.Tests.Unit;
 /// The launch args must place JVM options (the <c>-Xmx</c> heap cap + any extras) BEFORE the
 /// classpath / <c>@argfile</c> — the JVM ignores VM options that follow the main class. These tests
 /// pin that ordering and the default heap cap, using a temp argfile so no Ghidra/jars are needed.
+/// An explicit ArgFile beats the GHIDRASHARP_SERVER_DIR fallback (pinned in
+/// <see cref="ServerResolutionTests"/>), so these tests are parallel-safe outside that collection.
 /// </summary>
-public class JvmArgsTests
+public sealed class JvmArgsTests
 {
     [Fact]
     public void Default_options_prepend_the_8_GB_heap_cap_before_the_classpath()

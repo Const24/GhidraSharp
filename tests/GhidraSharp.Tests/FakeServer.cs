@@ -17,13 +17,16 @@ internal sealed class FakeServer : IAsyncDisposable
 {
     private readonly WebApplication _app;
 
-    private FakeServer(WebApplication app, GhidraClient client)
+    private FakeServer(WebApplication app, GhidraClient client, string url)
     {
         _app = app;
         Client = client;
+        Url = url;
     }
 
     public GhidraClient Client { get; }
+
+    public string Url { get; }
 
     public static async Task<FakeServer> StartAsync<TService>() where TService : class
     {
@@ -38,7 +41,7 @@ internal sealed class FakeServer : IAsyncDisposable
         await app.StartAsync();
 
         var url = app.Urls.First();
-        return new FakeServer(app, GhidraClient.Connect(url));
+        return new FakeServer(app, GhidraClient.Connect(url), url);
     }
 
     public async ValueTask DisposeAsync()

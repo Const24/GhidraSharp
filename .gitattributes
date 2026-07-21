@@ -1,13 +1,6 @@
 # Normalize line endings: LF in the repo, source stays LF on checkout too.
 * text=auto eol=lf
 
-*.cs     text eol=lf
-*.java   text eol=lf
-*.proto  text eol=lf
-*.gradle text eol=lf
-*.md     text eol=lf
-gradlew  text eol=lf
-
 # Windows scripts must stay CRLF.
 *.bat    text eol=crlf
 

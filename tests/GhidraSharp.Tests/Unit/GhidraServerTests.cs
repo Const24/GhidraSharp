@@ -1,12 +1,17 @@
+using System.Net;
+using System.Net.Sockets;
+
 namespace Const24.GhidraSharp.Tests.Unit;
 
-public class GhidraServerTests
+public sealed class GhidraServerTests
 {
     [Fact]
-    public void FindFreePort_returns_a_usable_port()
+    public void FindFreePort_returns_a_port_that_can_be_bound()
     {
         var port = GhidraServer.FindFreePort();
         Assert.InRange(port, 1, 65535);
+        using var listener = new TcpListener(IPAddress.Loopback, port);
+        listener.Start(); // throws SocketException if the port is not actually free
     }
 
     [Fact]

@@ -1,6 +1,6 @@
 namespace Const24.GhidraSharp.Tests.Unit;
 
-public class UnreachableServerTests
+public sealed class UnreachableServerTests
 {
     [Fact]
     public async Task A_call_to_an_unreachable_server_throws_a_helpful_GhidraException()

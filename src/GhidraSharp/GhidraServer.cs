@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -113,7 +114,7 @@ public sealed class GhidraServer : IAsyncDisposable, IDisposable
         {
             psi.ArgumentList.Add(arg);
         }
-        psi.Environment["GHIDRASHARP_PORT"] = port.ToString();
+        psi.Environment["GHIDRASHARP_PORT"] = port.ToString(CultureInfo.InvariantCulture);
         if (!string.IsNullOrWhiteSpace(options.GhidraInstallDir))
         {
             psi.Environment["GHIDRA_INSTALL_DIR"] = options.GhidraInstallDir;
@@ -329,8 +330,8 @@ public sealed class GhidraServer : IAsyncDisposable, IDisposable
             {
                 var u = p.Replace('\\', '/');
                 var name = Path.GetFileName(p);
-                return u.Contains("/lib/")
-                    && !u.Contains("/Debug/")
+                return u.Contains("/lib/", StringComparison.Ordinal)
+                    && !u.Contains("/Debug/", StringComparison.Ordinal)
                     && !name.StartsWith("guava", StringComparison.OrdinalIgnoreCase)
                     && !name.EndsWith("-src.jar", StringComparison.OrdinalIgnoreCase);
             });

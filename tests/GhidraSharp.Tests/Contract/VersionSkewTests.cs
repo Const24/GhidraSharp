@@ -1,6 +1,6 @@
 namespace Const24.GhidraSharp.Tests.Contract;
 
-public class VersionSkewTests
+public sealed class VersionSkewTests
 {
     [Fact]
     public async Task Calling_an_RPC_an_older_server_lacks_throws_a_helpful_GhidraException()

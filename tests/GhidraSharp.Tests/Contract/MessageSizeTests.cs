@@ -6,7 +6,7 @@ namespace Const24.GhidraSharp.Tests.Contract;
 /// test sends a ~5 MB reply and asserts it is received intact (it fails on the
 /// 4 MB default).
 /// </summary>
-public class MessageSizeTests
+public sealed class MessageSizeTests
 {
     [Fact]
     public async Task ListFunctions_handles_a_reply_larger_than_the_default_4MB_cap()

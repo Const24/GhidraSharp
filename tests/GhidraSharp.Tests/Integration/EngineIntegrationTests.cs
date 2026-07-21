@@ -18,11 +18,17 @@ public sealed class IntegrationFixture : IAsyncLifetime
     public string ClassFile { get; private set; } = "";
 
     private GhidraServer? _server;
+    private string? _staleServerDir;
     private string? _work;
     private string? _proj;
 
     public async Task InitializeAsync()
     {
+        // A developer's stale GHIDRASHARP_SERVER_DIR must never hijack the launch:
+        // this suite always tests the source-built argfile server. Restored on dispose.
+        _staleServerDir = Environment.GetEnvironmentVariable("GHIDRASHARP_SERVER_DIR");
+        Environment.SetEnvironmentVariable("GHIDRASHARP_SERVER_DIR", null);
+
         var root = FindRepoRoot();
         var ghidra = Environment.GetEnvironmentVariable("GHIDRA_INSTALL_DIR");
         var javaHome = Environment.GetEnvironmentVariable("JAVA_HOME");
@@ -65,6 +71,7 @@ public sealed class IntegrationFixture : IAsyncLifetime
         {
             await _server.DisposeAsync();
         }
+        Environment.SetEnvironmentVariable("GHIDRASHARP_SERVER_DIR", _staleServerDir);
         TryDelete(_proj);
         TryDelete(_work);
     }
@@ -108,9 +115,10 @@ public sealed class IntegrationFixture : IAsyncLifetime
     }
 }
 
-// All tests in this class share one server + one current program (the fixture) and
-// key off addresses, never names — so the single mutating test (rename) can't affect
-// the others regardless of run order. xUnit also runs a class's tests sequentially.
+// All tests share one server (the fixture) but NOT one program: several tests switch the
+// server's current program (OpenProgram / transient import). The invariant is that no test
+// assumes which program is current, and each leaves a program with functions open for the
+// next. xUnit runs a class's tests sequentially, so the switches never interleave.
 [Trait("Category", "Integration")]
 [Collection("Ghidra servers")]
 public sealed class EngineIntegrationTests(IntegrationFixture fixture) : IClassFixture<IntegrationFixture>

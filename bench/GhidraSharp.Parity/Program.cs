@@ -1,15 +1,11 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using Const24.GhidraSharp;
 
-// GhidraSharp.Parity <project.gpr|dir> <out-dir>
-//
-// Extracts a canonical dump of every bridged RPC (via GhidraClient) for a
-// face-to-face comparison with pyghidra (see ../pyghidra_extract.py, which emits
-// the identical format from the same Ghidra calls). Also records per-capability
-// timing. The two dumps must be byte-for-byte equal.
-//
+// Canonical dump of every bridged RPC plus per-capability timings, for a byte-for-byte
+// comparison with the pyghidra twin (../pyghidra_extract.py — same calls, same format).
 // Env: GHIDRASHARP_ARGFILE (java @argfile; defaults to server/build/ghidrasharp-java.args).
 
 if (args.Length < 2)
@@ -41,7 +37,7 @@ await Time("functions", async () =>
     foreach (var f in funcs)
     {
         var calls = string.Join(";", f.Calls.OrderBy(c => c, StringComparer.Ordinal));
-        sb.Append($"{f.EntryPoint}\t{f.Name}\t{f.Size}\t{f.ParameterCount}\t{Bool(f.IsThunk)}\t{calls}\n");
+        sb.Append(CultureInfo.InvariantCulture, $"{f.EntryPoint}\t{f.Name}\t{f.Size}\t{f.ParameterCount}\t{Bool(f.IsThunk)}\t{calls}\n");
     }
     Write("functions.txt", sb);
     return funcs.Count;
@@ -56,7 +52,7 @@ await Time("symbols", async () =>
     var sb = new StringBuilder();
     foreach (var s in syms)
     {
-        sb.Append($"{s.Address}\t{s.Name}\t{s.SymbolType}\t{s.Source}\t{Bool(s.IsPrimary)}\t{Bool(s.IsGlobal)}\n");
+        sb.Append(CultureInfo.InvariantCulture, $"{s.Address}\t{s.Name}\t{s.SymbolType}\t{s.Source}\t{Bool(s.IsPrimary)}\t{Bool(s.IsGlobal)}\n");
     }
     Write("symbols.txt", sb);
     return syms.Count;
@@ -76,7 +72,7 @@ await Time("decompile", async () =>
     var sb = new StringBuilder();
     foreach (var d in results)
     {
-        sb.Append($">>> {d.EntryPoint}\n{d.CCode}");
+        sb.Append(CultureInfo.InvariantCulture, $">>> {d.EntryPoint}\n{d.CCode}");
     }
 
     Write("decompile.txt", sb);
@@ -91,7 +87,7 @@ await Time("instructions", async () =>
     {
         foreach (var ins in await g.GetInstructionsAsync(f.EntryPoint))
         {
-            sb.Append($"{ins.Address}\t{ins.Mnemonic}\t{ins.Representation}\n");
+            sb.Append(CultureInfo.InvariantCulture, $"{ins.Address}\t{ins.Mnemonic}\t{ins.Representation}\n");
             n++;
         }
     }
@@ -110,7 +106,7 @@ await Time("xrefs_to", async () =>
             .ThenBy(r => r.ReferenceType, StringComparer.Ordinal);
         foreach (var r in refs)
         {
-            sb.Append($"{r.ToAddress}\t{r.FromAddress}\t{r.ReferenceType}\n");
+            sb.Append(CultureInfo.InvariantCulture, $"{r.ToAddress}\t{r.FromAddress}\t{r.ReferenceType}\n");
             n++;
         }
     }
@@ -124,7 +120,7 @@ await Time("bytes", async () =>
     foreach (var f in funcs)
     {
         var data = await g.ReadBytesAsync(f.EntryPoint, 16);
-        sb.Append($"{f.EntryPoint}\t{Convert.ToHexString(data)}\n");
+        sb.Append(CultureInfo.InvariantCulture, $"{f.EntryPoint}\t{Convert.ToHexString(data)}\n");
     }
     Write("bytes.txt", sb);
     return funcs.Count;
@@ -139,7 +135,7 @@ await Time("function_detail", async () =>
         var ps = string.Join(";", fd.Parameters.Select(p => $"{p.Name}|{p.DataType}|{p.Storage}"));
         var ls = string.Join(";", fd.Locals.Select(v => $"{v.Name}|{v.DataType}|{v.Storage}"));
         var callers = string.Join(";", fd.Callers.OrderBy(c => c, StringComparer.Ordinal));
-        sb.Append($"{fd.EntryPoint}\t{fd.Signature}\t{fd.ReturnType}\t{fd.CallingConvention}"
+        sb.Append(CultureInfo.InvariantCulture, $"{fd.EntryPoint}\t{fd.Signature}\t{fd.ReturnType}\t{fd.CallingConvention}"
                   + $"\t{Bool(fd.NoReturn)}\t{Bool(fd.VarArgs)}\t{Bool(fd.Inline)}\t{ps}\t{ls}\t{callers}\n");
     }
     Write("function_detail.txt", sb);
@@ -155,7 +151,7 @@ await Time("datatypes", async () =>
     var sb = new StringBuilder();
     foreach (var d in dts)
     {
-        sb.Append($"{d.Path}\t{d.Name}\t{d.DisplayName}\t{d.Kind}\t{d.Length}\n");
+        sb.Append(CultureInfo.InvariantCulture, $"{d.Path}\t{d.Name}\t{d.DisplayName}\t{d.Kind}\t{d.Length}\n");
     }
     Write("datatypes.txt", sb);
     return dts.Count;
@@ -177,4 +173,5 @@ async Task Time(string name, Func<Task<int>> body)
 
 void Write(string file, StringBuilder sb) => File.WriteAllText(Path.Combine(outDir, file), sb.ToString());
 
+// Lowercase to stay byte-identical with the Python twin — bool.ToString() yields "True".
 static string Bool(bool b) => b ? "true" : "false";
