@@ -82,12 +82,10 @@ your chip — e.g. `SuperH:BE:32:SH-2A`, `ARM:LE:32:v7`, `x86:LE:64:default`. No
 sure which? `ListLanguagesAsync()` enumerates every one Ghidra supports (filter
 like `ListLanguagesAsync("SuperH")`).
 
-That example is transient — nothing is written to disk. To **save a project**
-(analyze once, reopen fast, persist renames) use
-`CreateProjectAsync(binaryPath, projectLocation, projectName, languageId)` — it
-writes `<projectName>.gpr` + a `<projectName>.rep` folder, which you reopen later
-with `OpenProgramAsync(name, projectPath: @"...\ecu.gpr")`. Running your own (or a
-shared) server instead? Skip `StartAsync` and use
+That example is transient — nothing touches disk. To analyze once, reopen fast
+and persist renames, `CreateProjectAsync(...)` writes a Ghidra project
+(`.gpr` + `.rep`) that you reopen with `OpenProgramAsync(name, projectPath: ...)`.
+Running your own (or a shared) server instead? Skip `StartAsync` and use
 `GhidraClient.Connect("http://127.0.0.1:50080")`.
 
 ### Running the server
@@ -179,18 +177,13 @@ Working bridge. The surface grows one RPC at a time as consumers need it.
 * `FindStrings` — defined strings whose text matches a substring, each with its xrefs (the "concept → code" loop)
 
 Architecture-agnostic by construction — it just forwards a Ghidra language id, so
-the same code drives any processor Ghidra supports. Parity verified byte-for-byte
-against pyghidra on three very different ISAs — SH-2A firmware, JVM bytecode, and
-an x86-64 PE (see [bench/README](https://github.com/Const24/GhidraSharp/blob/main/bench/README.md#multi-architecture)).
-
-The public C# API exposes only hand-written, documented result types
-(`ProgramInfo`, `GhidraFunction`, `Decompilation`, `GhidraReference`, …); the
-generated gRPC wire types are internal. Names follow Ghidra's own terms so they
-read right to a Ghidra user, with XML docs that also explain each concept to a
-.NET developer new to Ghidra. Validated **byte-for-byte against pyghidra across
-the whole API** (functions, symbols, decompilation, instructions, xrefs, bytes,
-function detail, data types) at comparable speed — see the
-[parity report](https://github.com/Const24/GhidraSharp/blob/main/bench/REPORT.md) and [bench/](https://github.com/Const24/GhidraSharp/tree/main/bench).
+the same code drives any processor Ghidra supports. The public API exposes only
+hand-written, documented result types (`ProgramInfo`, `GhidraFunction`,
+`Decompilation`, …); the generated gRPC wire types stay internal, and the XML docs
+explain each Ghidra concept to a .NET developer who has never opened Ghidra. The
+whole surface is validated **byte-for-byte against pyghidra** across six ISAs at
+comparable speed — see [bench/](https://github.com/Const24/GhidraSharp/tree/main/bench)
+and the [parity report](https://github.com/Const24/GhidraSharp/blob/main/bench/REPORT.md).
 
 ## Versioning
 
@@ -231,27 +224,17 @@ pyghidra); `python bench/verify.py` runs it. Tests under [`tests/`](https://gith
 
 ## Scope — what's bridged, and what isn't
 
-GhidraSharp is **not** a mirror of the entire Ghidra API, and doesn't try to be.
-The goal is a curated, typed, documented surface over the **core RE operations**
-(above), each one proven byte-identical to pyghidra. What it intentionally does
-**not** expose:
+GhidraSharp is **not** a mirror of the entire Ghidra API — it's a curated, typed,
+documented surface over the **core RE operations** above. It intentionally does not
+expose the live Ghidra object graph (you get flat result records), the decompiler's
+internals beyond C text / typed signatures / raw PCode (no high PCode /
+`HighFunction`), or in-process scripting semantics.
 
-* **Arbitrary Ghidra API / live object graph** — you get flat result records, not
-  walkable Ghidra objects.
-* **Decompiler internals** — C text, a typed signature, and per-instruction **raw
-  PCode** are exposed, but not the decompiler's high PCode / `HighFunction`
-  (data-flow SSA) or C-token↔address markup.
-* **In-process scripting semantics** — no ad-hoc evaluation of Java/Python against
-  the live program.
-
-For everything outside the typed surface there's **`RunScript`**: it runs any
-GhidraScript against the current program and returns its output. So you're never
-*more* limited than pyghidra — just less typed for the long tail. Typed RPCs are
-added on demand as consumers need them.
-
-The trade for these limits: a single typed .NET stack, no Python and no JVM in the
-consumer, reviewable end to end, and a correctness story you can verify yourself
-(`bench/`).
+For everything outside the typed surface there's **`RunScript`**: any GhidraScript
+against the current program, output captured — so you're never *more* limited than
+pyghidra, just less typed for the long tail. Typed RPCs are added as consumers need
+them. The trade: a single typed .NET stack, no Python and no JVM in the consumer,
+and a correctness story you can verify yourself (`bench/`).
 
 **Security:** the server is unauthenticated and exposes `RunScript` (arbitrary
 GhidraScript) plus file and memory access, so it **binds to loopback only** and is

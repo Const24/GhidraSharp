@@ -41,7 +41,7 @@ tools you already have, so the comparison is fully reproducible by anyone:
   `clang -c -target <triple>` into relocatable ELF objects (no sysroot, no
   downloads); Ghidra detects the language from the ELF header
 
-(Subaru firmware was used during our own development but is **intentionally not**
+(Real SH-2A firmware was used during our own development but is **intentionally not**
 in this repo — everyone reproduces with the self-generated targets above.)
 
 ## Why this is a strong test (the oracle)
@@ -67,6 +67,6 @@ functions Ghidra's own decompiler is nondeterministic (running pyghidra twice on
 the same program disagrees with itself there) — `verify.py` detects this and
 reports it as a Ghidra property, not a bridge difference.
 
-Validated across very different ISAs — SuperH SH-2A, JVM bytecode, ARM64
-(LE **and** BE), ARM32, RISC-V64, x86-32, x86-64 — covering little/big-endian,
-32/64-bit, CISC, RISC, and a stack VM.
+Validated across very different ISAs — JVM bytecode, x86-64, ARM64, ARM32,
+RISC-V64, x86-32 in the reproducible harness (32/64-bit, CISC, RISC, a stack
+VM), plus big-endian SuperH SH-2A firmware during development (not in the repo).

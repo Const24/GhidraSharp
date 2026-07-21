@@ -24,7 +24,7 @@ generated types are `Access="Internal"` and reach the tests through
 in `Model.cs`.
 
 **Version them in lockstep.** Three files carry the same version and move
-together (`0.5.0` today):
+together:
 
 - `src/GhidraSharp/GhidraSharp.csproj` (`<Version>`)
 - `src/GhidraSharp.Server/GhidraSharp.Server.csproj`
@@ -139,10 +139,10 @@ lower it toward host-RAM/N.
   `java @build/ghidrasharp-java.args`, or feed the argfile to
   `GhidraServerOptions.ArgFile`. This is the path the integration/pool tests take;
   `installDist` is for producing the shippable dist.
-- **Server-dir resolution** (`GhidraServer.StartAsync`): explicit
-  `ServerDirectory` → env `GHIDRASHARP_SERVER_DIR` →
-  `AppContext.BaseDirectory/ghidrasharp-server` (must contain `lib/`). Callers
-  should not have to know paths.
+- **Server resolution** (`GhidraServer.StartAsync`): explicit `ServerDirectory`
+  → explicit `ArgFile` → env `GHIDRASHARP_SERVER_DIR` →
+  `AppContext.BaseDirectory/ghidrasharp-server` (dir must contain `lib/`).
+  Explicit options beat the ambient env; callers should not have to know paths.
 - **MSBuild output is locale-dependent here** (currently emits Russian-locale
   text). Scrape **exit codes**, not stdout, for "error"/"warning" when scripting a
   build.
