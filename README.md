@@ -206,7 +206,7 @@ A test pyramid; the fast tiers need no Ghidra and run anywhere.
 
 ```sh
 # fast — C# unit + contract tests (client ↔ in-process fake server). No Ghidra/JVM.
-dotnet test tests/GhidraSharp.Tests --filter "Category!=Integration"
+dotnet test tests/GhidraSharp.Tests -- --filter-not-trait "Category=Integration"
 
 # Java service mapping tests (JUnit 5 + in-process gRPC + a fake engine)
 cd server && ./gradlew test
@@ -215,8 +215,12 @@ cd server && ./gradlew test
 # javac, asserts decompile/rename+save/space-qualified-address behaviours). Gated:
 # skipped unless GHIDRA_INSTALL_DIR is set and the launch argfile exists.
 cd server && ./gradlew writeServerArgs            # once, to produce the argfile
-dotnet test tests/GhidraSharp.Tests --filter "Category=Integration"
+dotnet test tests/GhidraSharp.Tests -- --filter-trait "Category=Integration"
 ```
+
+The tests run on Microsoft.Testing.Platform, so filters go **after `--`** to the test
+executable. VSTest's `--filter "Category=X"` is not an error here — it is silently
+ignored and everything runs.
 
 [`bench/`](https://github.com/Const24/GhidraSharp/tree/main/bench) is the acceptance + benchmark layer (byte-for-byte parity vs
 pyghidra); `python bench/verify.py` runs it. Tests under [`tests/`](https://github.com/Const24/GhidraSharp/tree/main/tests) and

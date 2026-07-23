@@ -78,17 +78,25 @@ final mandatory step of adding an RPC.
 
 README lists the commands. The maintainer-critical subtlety it doesn't spell out:
 **a green `dotnet test` can mean nothing was really tested.** The integration and
-pool tests are `[SkippableFact]` and **skip silently** when prerequisites are
-absent:
+pool tests are gated by `Assert.SkipUnless` and **skip silently** when
+prerequisites are absent:
 
 - `EngineIntegrationTests` needs `GHIDRA_INSTALL_DIR` + `JAVA_HOME` + the argfile
   `server/build/ghidrasharp-java.args`.
 - `ServerPoolTests` uses the stub engine and needs only `JAVA_HOME` + that argfile.
 
 Run `cd server && ./gradlew writeServerArgs` first, then — before believing a
-green run touched real Ghidra — confirm the integration tests actually **ran**
-(check passed-vs-skipped counts, e.g. `--filter Category=Integration`). There is
-**no CI** to catch this for you (see below).
+green run touched real Ghidra — confirm the integration tests actually **ran**:
+
+```sh
+dotnet test -- --filter-trait "Category=Integration"   # expect 14 passed, 0 skipped
+```
+
+**The filter must follow `--`.** These tests run on Microsoft.Testing.Platform;
+VSTest's `--filter "Category=Integration"` is not rejected, it is *silently
+ignored* (only a `warning MTP0001`) and the whole suite runs — which hands you
+exactly the false picture this check exists to prevent. CI cannot cover this gap
+either: a runner has no Ghidra install.
 
 ## Server pool memory knobs
 
@@ -147,19 +155,39 @@ lower it toward host-RAM/N.
   text). Scrape **exit codes**, not stdout, for "error"/"warning" when scripting a
   build.
 
+## The enforced contract — four root files
+
+The build *is* the gate; there is no separate lint step to drift from it. Nothing
+in the chain sits above the repo root, so a clone builds identically on a fork or
+a runner. Marked `shared-core v1` — byte-identical to RomForge.Lab's copy; sync by
+hand when either changes.
+
+- **`Directory.Build.props`** — `LangVersion`/`Nullable`/`ImplicitUsings`,
+  `AnalysisLevel=latest-recommended`, `EnforceCodeStyleInBuild`,
+  `GenerateDocumentationFile`, and `TreatWarningsAsErrors` **unconditionally** (one
+  bar locally and on CI). Tune noise through `.editorconfig` severities, never by
+  making `TreatWarningsAsErrors` conditional. WIP escape hatch:
+  `dotnet build -p:TreatWarningsAsErrors=false`.
+- **`.editorconfig`** (`root = true`) — the style canon at **warning** severity, so
+  the language server and the build push the same way. Carve-outs live here:
+  `CS1591` off for what isn't shipped (tests/bench/sample), `CA1707`/`CA1711` off
+  for xUnit naming. NB the glob is `[{tests,**/tests}/**.cs]` — `**/tests/` alone
+  does **not** match a repo-root `tests/` folder.
+- **`Directory.Packages.props`** — central package versions; csprojs carry a
+  `PackageReference` with no version.
+- **`global.json`** — pins the SDK band (`rollForward: latestFeature`).
+
+Deliberately absent: lock files (contributor and dependabot friction; consumers
+are pinned by the nuspec) and `nuget.config`.
+
 ## Conventions the tooling does not enforce
 
-There is no `.editorconfig`, `Directory.Build.props`, `Directory.Packages.props`,
-`global.json`, or `nuget.config` — so these live only in the existing code:
-
-- File-scoped namespaces under `Const24.GhidraSharp`. `Nullable`,
-  `ImplicitUsings`, and `LangVersion=latest` are on everywhere.
-- **`TreatWarningsAsErrors` and `GenerateDocumentationFile` are set only in
-  `src/GhidraSharp`.** A missing XML doc comment on a public member is a **hard
-  build error** in the library, a non-event elsewhere. The public surface is the
-  hand-written records in `Model.cs`.
-- **Tests:** xUnit v2 + `Xunit.SkippableFact`; the integration gate is
-  `[Trait("Category","Integration")]`. Java: JUnit 5.
+- File-scoped namespaces under `Const24.GhidraSharp`. The public surface is the
+  hand-written records in `Model.cs`; a missing XML doc there is a build error.
+- **Tests:** xUnit **v3** on Microsoft.Testing.Platform — the test project is an
+  `Exe`, there is no `Test.Sdk`/VSTest runner, and skip is native
+  (`Assert.SkipUnless`). The integration gate is `[Trait("Category","Integration")]`.
+  Java: JUnit 5.
 - **Ghidra jars are on the main compile/runtime classpath only, never the test
   set** — that is why `server/gradlew test` runs on any machine.
 - **Paired protobuf versions.** C# `Google.Protobuf` 3.35.x and Java
@@ -221,14 +249,20 @@ says so. A leak in git history is not something you can quietly undo.
 
 ## No CI (yet)
 
-There is currently **no CI** — `.github/` has been removed and the README badge is
-gone. Local commands are the only safety net, which is exactly why the
-silent-skip trap above matters. When CI is restored, add the workflow back plus a
-`publish.yml` (tag → pack → push → attach the server zip) and the README badge.
+There is currently **no CI** — `.github/` is absent and there is no README badge.
+Local commands are the only safety net, which is exactly why the silent-skip trap
+above matters.
+
+When CI is restored, a build+test workflow is nearly free enforcement:
+`TreatWarningsAsErrors` and `EnforceCodeStyleInBuild` are unconditional, so the
+build already *is* the analyzer and style gate — no separate lint step to keep in
+sync. Two things it still would **not** buy you: a runner has no Ghidra, so the
+integration and pool tiers skip there exactly as they do locally; and releases stay
+manual until a `publish.yml` (tag → pack → push → attach the server zip) exists.
 
 ## Backlog
 
-- Restore CI (above).
+- Restore CI, plus a `publish.yml` (above).
 - A possible future RPC: bulk typed `DataItem`s + an address-keyed xref graph.
   Deliberately **not** built — it waits for a real consumer need, not a
   speculative one.
