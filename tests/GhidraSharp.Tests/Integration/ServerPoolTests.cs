@@ -25,11 +25,11 @@ public sealed class ServerPoolTests
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Pool_runs_every_item_across_servers_and_reports_progress()
     {
         var (ok, reason, argFile) = Gate();
-        Skip.IfNot(ok, reason);
+        Assert.SkipUnless(ok, reason);
         using var _ = StubEngine();
 
         await using var pool = await GhidraServerPool.StartAsync(2, new GhidraServerOptions { ArgFile = argFile });
@@ -46,11 +46,11 @@ public sealed class ServerPoolTests
         Assert.Equal(new PoolProgress(6, 6, 0), progress.Last);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Pool_captures_per_item_errors_and_keeps_going()
     {
         var (ok, reason, argFile) = Gate();
-        Skip.IfNot(ok, reason);
+        Assert.SkipUnless(ok, reason);
         using var _ = StubEngine();
 
         await using var pool = await GhidraServerPool.StartAsync(2, new GhidraServerOptions { ArgFile = argFile });
@@ -69,11 +69,11 @@ public sealed class ServerPoolTests
         Assert.All(results.Where(r => !r.IsSuccess), r => Assert.IsType<InvalidOperationException>(r.Error));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task A_crashed_server_is_restarted_and_the_batch_finishes()
     {
         var (ok, reason, argFile) = Gate();
-        Skip.IfNot(ok, reason);
+        Assert.SkipUnless(ok, reason);
         using var _ = StubEngine();
 
         await using var pool = await GhidraServerPool.StartAsync(1, new GhidraServerOptions { ArgFile = argFile });
@@ -94,11 +94,11 @@ public sealed class ServerPoolTests
         Assert.All(results, r => Assert.True(r.IsSuccess)); // item 1 succeeds after restart
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task BatchExtractor_turns_pool_errors_into_failure_summaries_in_input_order()
     {
         var (ok, reason, argFile) = Gate();
-        Skip.IfNot(ok, reason);
+        Assert.SkipUnless(ok, reason);
         using var _ = StubEngine();
 
         // The stub engine fails OpenProgram, so every item takes the pool-error path:

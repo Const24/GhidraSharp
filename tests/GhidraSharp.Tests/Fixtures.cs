@@ -12,14 +12,15 @@ public abstract class FakeServerFixture : IAsyncLifetime
 
     internal abstract Task<FakeServer> StartServerAsync();
 
-    public async Task InitializeAsync() => _server = await StartServerAsync();
+    public async ValueTask InitializeAsync() => _server = await StartServerAsync();
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_server is not null)
         {
             await _server.DisposeAsync();
         }
+        GC.SuppressFinalize(this);
     }
 }
 

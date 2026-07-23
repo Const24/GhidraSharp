@@ -22,7 +22,7 @@ public sealed class IntegrationFixture : IAsyncLifetime
     private string? _work;
     private string? _proj;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // A developer's stale GHIDRASHARP_SERVER_DIR must never hijack the launch:
         // this suite always tests the source-built argfile server. Restored on dispose.
@@ -65,7 +65,7 @@ public sealed class IntegrationFixture : IAsyncLifetime
         Available = true;
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_server is not null)
         {
@@ -74,6 +74,7 @@ public sealed class IntegrationFixture : IAsyncLifetime
         Environment.SetEnvironmentVariable("GHIDRASHARP_SERVER_DIR", _staleServerDir);
         TryDelete(_proj);
         TryDelete(_work);
+        GC.SuppressFinalize(this);
     }
 
     private static string? FindRepoRoot()
@@ -132,50 +133,55 @@ public sealed class EngineIntegrationTests(IntegrationFixture fixture) : IClassF
         return fns[0].EntryPoint;
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Opening_a_created_project_yields_functions()
     {
-        Skip.IfNot(fixture.Available, fixture.SkipReason);
+        Assert.SkipUnless(fixture.Available, fixture.SkipReason);
         var fns = await Client.ListFunctionsAsync(includeCalls: true);
         Assert.NotEmpty(fns);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task A_function_decompiles_to_nonempty_C()
     {
-        Skip.IfNot(fixture.Available, fixture.SkipReason);
+        Assert.SkipUnless(fixture.Available, fixture.SkipReason);
         var entry = await FirstFunctionEntryAsync();
         var dec = await Client.DecompileAtAsync(entry);
         Assert.True(dec.IsSuccess);
         Assert.False(string.IsNullOrWhiteSpace(dec.CCode));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetFunction_works_for_a_space_qualified_address()
     {
         // Regression: JVM entry points are "ram:...." — the address parser must handle them.
-        Skip.IfNot(fixture.Available, fixture.SkipReason);
+        Assert.SkipUnless(fixture.Available, fixture.SkipReason);
         var entry = await FirstFunctionEntryAsync();
         Assert.StartsWith("ram:", entry);
         var detail = await Client.GetFunctionAtAsync(entry);
         Assert.Equal(entry, detail.EntryPoint);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Instruction_detail_is_readable()
     {
-        Skip.IfNot(fixture.Available, fixture.SkipReason);
+        Assert.SkipUnless(fixture.Available, fixture.SkipReason);
         var entry = await FirstFunctionEntryAsync();
         var detail = await Client.GetInstructionDetailAsync(entry);
         Assert.Equal(entry, detail.Address);
         Assert.False(string.IsNullOrWhiteSpace(detail.Mnemonic));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Rename_then_save_then_reopen_persists_the_name()
     {
         // Regression: edits must survive SaveProgram + a fresh read-only reopen.
-        Skip.IfNot(fixture.Available, fixture.SkipReason);
+        Assert.SkipUnless(fixture.Available, fixture.SkipReason);
+
+        // Self-sufficient on purpose: the class shares one client, and a sibling test may
+        // have left a transiently-imported program on it (which SaveProgram rightly rejects).
+        // Test order is not guaranteed, so open the persistent project writable here.
+        await Client.OpenProgramAsync("IT", projectPath: fixture.GprPath, writable: true);
         var entry = await FirstFunctionEntryAsync();
 
         await Client.RenameSymbolAtAsync(entry, "IntegrationRenamed");
@@ -186,21 +192,21 @@ public sealed class EngineIntegrationTests(IntegrationFixture fixture) : IClassF
         Assert.Contains(symbols, s => s.Name == "IntegrationRenamed");
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ListLanguages_returns_the_processor_catalog()
     {
-        Skip.IfNot(fixture.Available, fixture.SkipReason);
+        Assert.SkipUnless(fixture.Available, fixture.SkipReason);
         var langs = await Client.ListLanguagesAsync();
         Assert.NotEmpty(langs);
         Assert.Contains(langs, l => l.Id == "x86:LE:64:default"); // always present in Ghidra
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Importing_a_binary_transiently_needs_no_project()
     {
         // OpenProgram with a binary and no project path imports into a scratch program —
         // the "just show me the functions" path, no projectLocation/name.
-        Skip.IfNot(fixture.Available, fixture.SkipReason);
+        Assert.SkipUnless(fixture.Available, fixture.SkipReason);
         var info = await Client.OpenProgramAsync(fixture.ClassFile); // JVM .class auto-detects the language
         Assert.True(info.FunctionCount > 0);
 
@@ -210,10 +216,10 @@ public sealed class EngineIntegrationTests(IntegrationFixture fixture) : IClassF
         Assert.True(dec.IsSuccess);
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task GetFunctionReferences_returns_a_functions_outgoing_refs()
     {
-        Skip.IfNot(fixture.Available, fixture.SkipReason);
+        Assert.SkipUnless(fixture.Available, fixture.SkipReason);
         var fns = await Client.ListFunctionsAsync();
 
         var anyWithRefs = false;
@@ -228,23 +234,23 @@ public sealed class EngineIntegrationTests(IntegrationFixture fixture) : IClassF
         Assert.True(anyWithRefs); // e.g. main() references add()/println -> outgoing refs
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task ListMemoryBlocks_returns_the_programs_sections()
     {
-        Skip.IfNot(fixture.Available, fixture.SkipReason);
+        Assert.SkipUnless(fixture.Available, fixture.SkipReason);
         await Client.OpenProgramAsync(fixture.ClassFile);
         var blocks = await Client.ListMemoryBlocksAsync();
         Assert.NotEmpty(blocks); // every loaded program has at least one memory block
         Assert.All(blocks, b => Assert.False(string.IsNullOrEmpty(b.Name)));
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task FindStrings_runs_and_returns_a_list()
     {
         // Lenient smoke: a JVM .class may expose few or no Ghidra-defined strings, so we only
         // assert the RPC round-trips a well-formed list. Precise field mapping is covered by the
         // contract test against the fake server.
-        Skip.IfNot(fixture.Available, fixture.SkipReason);
+        Assert.SkipUnless(fixture.Available, fixture.SkipReason);
         await Client.OpenProgramAsync(fixture.ClassFile);
         var all = await Client.FindStringsAsync(); // null substring = every defined string
         Assert.NotNull(all);
