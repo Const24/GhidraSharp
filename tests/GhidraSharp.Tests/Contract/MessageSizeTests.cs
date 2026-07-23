@@ -13,7 +13,7 @@ public sealed class MessageSizeTests
     {
         await using var fake = await FakeServer.StartAsync<BigListFake>();
 
-        var functions = await fake.Client.ListFunctionsAsync();
+        var functions = await fake.Client.ListFunctionsAsync(ct: TestContext.Current.CancellationToken);
 
         Assert.Equal(BigListFake.Count, functions.Count);
     }

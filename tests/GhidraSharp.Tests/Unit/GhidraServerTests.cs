@@ -21,6 +21,7 @@ public sealed class GhidraServerTests
     public async Task StartAsync_throws_a_clear_error_when_the_argfile_is_missing()
     {
         var options = new GhidraServerOptions { ArgFile = "definitely-not-here.args" };
-        await Assert.ThrowsAsync<FileNotFoundException>(() => GhidraServer.StartAsync(options));
+        await Assert.ThrowsAsync<FileNotFoundException>(
+            () => GhidraServer.StartAsync(options, TestContext.Current.CancellationToken));
     }
 }

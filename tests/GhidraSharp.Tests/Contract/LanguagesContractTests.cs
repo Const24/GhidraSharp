@@ -7,7 +7,7 @@ public sealed class LanguagesContractTests(HappyServerFixture fixture) : IClassF
     [Fact]
     public async Task ListLanguages_maps_each_descriptor_to_GhidraLanguage()
     {
-        var langs = await Client.ListLanguagesAsync();
+        var langs = await Client.ListLanguagesAsync(ct: TestContext.Current.CancellationToken);
 
         var l = Assert.Single(langs);
         Assert.Equal("SuperH:BE:32:SH-2A", l.Id);

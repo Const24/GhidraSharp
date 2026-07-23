@@ -8,16 +8,19 @@ public sealed class ValidationContractTests(HappyServerFixture fixture) : IClass
     [Fact]
     public async Task Blank_addresses_and_names_throw_ArgumentException()
     {
-        await Assert.ThrowsAnyAsync<ArgumentException>(() => Client.DecompileAtAsync(""));
-        await Assert.ThrowsAnyAsync<ArgumentException>(() => Client.DecompileByNameAsync(" "));
-        await Assert.ThrowsAnyAsync<ArgumentException>(() => Client.GetReferencesToAsync(""));
-        await Assert.ThrowsAnyAsync<ArgumentException>(() => Client.GetFunctionAtAsync(""));
-        await Assert.ThrowsAnyAsync<ArgumentException>(() => Client.GetSymbolsAtAsync(""));
-        await Assert.ThrowsAnyAsync<ArgumentException>(() => Client.OpenProgramAsync(""));
+        var ct = TestContext.Current.CancellationToken;
+        await Assert.ThrowsAnyAsync<ArgumentException>(() => Client.DecompileAtAsync("", ct: ct));
+        await Assert.ThrowsAnyAsync<ArgumentException>(() => Client.DecompileByNameAsync(" ", ct: ct));
+        await Assert.ThrowsAnyAsync<ArgumentException>(() => Client.GetReferencesToAsync("", ct));
+        await Assert.ThrowsAnyAsync<ArgumentException>(() => Client.GetFunctionAtAsync("", ct: ct));
+        await Assert.ThrowsAnyAsync<ArgumentException>(() => Client.GetSymbolsAtAsync("", ct));
+        await Assert.ThrowsAnyAsync<ArgumentException>(() => Client.OpenProgramAsync("", ct: ct));
     }
 
     [Fact]
-    public async Task ReadBytes_rejects_a_nonpositive_length() => await Assert.ThrowsAnyAsync<ArgumentException>(() => Client.ReadBytesAsync("0x1000", 0));
+    public async Task ReadBytes_rejects_a_nonpositive_length() =>
+        await Assert.ThrowsAnyAsync<ArgumentException>(
+            () => Client.ReadBytesAsync("0x1000", 0, TestContext.Current.CancellationToken));
 
     [Fact]
     public void Connect_rejects_a_blank_address() => Assert.ThrowsAny<ArgumentException>(() => GhidraClient.Connect(""));

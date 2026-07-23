@@ -49,7 +49,7 @@ public sealed class ErrorContractTests(FailingServerFixture fixture) : IClassFix
     [Fact]
     public async Task Decompile_reports_failure_without_throwing()
     {
-        var d = await Client.DecompileAtAsync("0x1000");
+        var d = await Client.DecompileAtAsync("0x1000", ct: TestContext.Current.CancellationToken);
         Assert.False(d.IsSuccess);
         Assert.Contains("boom", d.Error, StringComparison.Ordinal);
     }
@@ -58,7 +58,7 @@ public sealed class ErrorContractTests(FailingServerFixture fixture) : IClassFix
     public async Task DecompileMany_surfaces_a_streamed_failure_without_throwing()
     {
         var results = new List<Decompilation>();
-        await foreach (var d in Client.DecompileManyAsync(all: true))
+        await foreach (var d in Client.DecompileManyAsync(all: true, ct: TestContext.Current.CancellationToken))
         {
             results.Add(d);
         }
@@ -73,7 +73,7 @@ public sealed class ErrorContractTests(FailingServerFixture fixture) : IClassFix
         // CapturingFake echoes the received type back as the error.
         await using var fake = await FakeServer.StartAsync<CapturingFake>();
         var ex = await Assert.ThrowsAsync<GhidraException>(
-            () => fake.Client.SetCommentAsync("0x1000", CommentType.Plate, "note"));
+            () => fake.Client.SetCommentAsync("0x1000", CommentType.Plate, "note", TestContext.Current.CancellationToken));
         Assert.Contains("Plate", ex.Message, StringComparison.Ordinal);
     }
 }

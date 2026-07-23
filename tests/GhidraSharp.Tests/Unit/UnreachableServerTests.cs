@@ -8,7 +8,8 @@ public sealed class UnreachableServerTests
         var port = GhidraServer.FindFreePort(); // nothing is listening on this port
         await using var client = GhidraClient.Connect($"http://127.0.0.1:{port}");
 
-        var ex = await Assert.ThrowsAsync<GhidraException>(() => client.PingAsync());
+        var ex = await Assert.ThrowsAsync<GhidraException>(
+            () => client.PingAsync(TestContext.Current.CancellationToken));
 
         // The interceptor should point the user at the server download, not leak a raw RpcException.
         Assert.Contains("releases", ex.Message, StringComparison.OrdinalIgnoreCase);

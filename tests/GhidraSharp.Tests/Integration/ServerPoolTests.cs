@@ -32,14 +32,16 @@ public sealed class ServerPoolTests
         Assert.SkipUnless(ok, reason);
         using var _ = StubEngine();
 
-        await using var pool = await GhidraServerPool.StartAsync(2, new GhidraServerOptions { ArgFile = argFile });
+        await using var pool = await GhidraServerPool.StartAsync(
+            2, new GhidraServerOptions { ArgFile = argFile }, TestContext.Current.CancellationToken);
         Assert.Equal(2, pool.Size);
 
         var progress = new Recorder();
         var results = await pool.ForEachAsync(
             Enumerable.Range(0, 6),
             async (client, _, ct) => await client.PingAsync(ct),
-            progress);
+            progress,
+            TestContext.Current.CancellationToken);
 
         Assert.Equal(6, results.Count);
         Assert.All(results, r => Assert.True(r.IsSuccess));
@@ -53,7 +55,8 @@ public sealed class ServerPoolTests
         Assert.SkipUnless(ok, reason);
         using var _ = StubEngine();
 
-        await using var pool = await GhidraServerPool.StartAsync(2, new GhidraServerOptions { ArgFile = argFile });
+        await using var pool = await GhidraServerPool.StartAsync(
+            2, new GhidraServerOptions { ArgFile = argFile }, TestContext.Current.CancellationToken);
 
         var results = await pool.ForEachAsync(Enumerable.Range(0, 6), async (client, i, ct) =>
         {
@@ -62,7 +65,7 @@ public sealed class ServerPoolTests
             {
                 throw new InvalidOperationException($"boom {i}");
             }
-        });
+        }, ct: TestContext.Current.CancellationToken);
 
         Assert.Equal(3, results.Count(r => r.IsSuccess));   // odd items
         Assert.Equal(3, results.Count(r => !r.IsSuccess));  // even items threw
@@ -76,7 +79,8 @@ public sealed class ServerPoolTests
         Assert.SkipUnless(ok, reason);
         using var _ = StubEngine();
 
-        await using var pool = await GhidraServerPool.StartAsync(1, new GhidraServerOptions { ArgFile = argFile });
+        await using var pool = await GhidraServerPool.StartAsync(
+            1, new GhidraServerOptions { ArgFile = argFile }, TestContext.Current.CancellationToken);
         var killed = false;
 
         var results = await pool.ForEachAsync(Enumerable.Range(0, 4), async (client, i, ct) =>
@@ -87,7 +91,7 @@ public sealed class ServerPoolTests
                 pool.Servers[0].Kill(); // crash the only server mid-batch
             }
             await client.PingAsync(ct); // fails on the dead server -> pool restarts + retries once
-        });
+        }, ct: TestContext.Current.CancellationToken);
 
         Assert.True(killed);
         Assert.Equal(4, results.Count);
@@ -108,8 +112,10 @@ public sealed class ServerPoolTests
         string[] paths = ["first.bin", "second.bin", "third.bin"];
         try
         {
-            await using var pool = await GhidraServerPool.StartAsync(2, new GhidraServerOptions { ArgFile = argFile });
-            var summaries = await BatchExtractor.RunAsync(pool, paths, outDir);
+            await using var pool = await GhidraServerPool.StartAsync(
+                2, new GhidraServerOptions { ArgFile = argFile }, TestContext.Current.CancellationToken);
+            var summaries = await BatchExtractor.RunAsync(
+                pool, paths, outDir, ct: TestContext.Current.CancellationToken);
 
             Assert.Equal(paths, summaries.Select(s => s.Path));
             Assert.All(summaries, s =>

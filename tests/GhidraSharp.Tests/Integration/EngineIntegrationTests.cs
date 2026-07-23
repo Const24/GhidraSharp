@@ -128,7 +128,7 @@ public sealed class EngineIntegrationTests(IntegrationFixture fixture) : IClassF
 
     private async Task<string> FirstFunctionEntryAsync()
     {
-        var fns = await Client.ListFunctionsAsync();
+        var fns = await Client.ListFunctionsAsync(ct: TestContext.Current.CancellationToken);
         Assert.NotEmpty(fns);
         return fns[0].EntryPoint;
     }
@@ -137,7 +137,7 @@ public sealed class EngineIntegrationTests(IntegrationFixture fixture) : IClassF
     public async Task Opening_a_created_project_yields_functions()
     {
         Assert.SkipUnless(fixture.Available, fixture.SkipReason);
-        var fns = await Client.ListFunctionsAsync(includeCalls: true);
+        var fns = await Client.ListFunctionsAsync(includeCalls: true, ct: TestContext.Current.CancellationToken);
         Assert.NotEmpty(fns);
     }
 
@@ -146,7 +146,7 @@ public sealed class EngineIntegrationTests(IntegrationFixture fixture) : IClassF
     {
         Assert.SkipUnless(fixture.Available, fixture.SkipReason);
         var entry = await FirstFunctionEntryAsync();
-        var dec = await Client.DecompileAtAsync(entry);
+        var dec = await Client.DecompileAtAsync(entry, ct: TestContext.Current.CancellationToken);
         Assert.True(dec.IsSuccess);
         Assert.False(string.IsNullOrWhiteSpace(dec.CCode));
     }
@@ -158,7 +158,7 @@ public sealed class EngineIntegrationTests(IntegrationFixture fixture) : IClassF
         Assert.SkipUnless(fixture.Available, fixture.SkipReason);
         var entry = await FirstFunctionEntryAsync();
         Assert.StartsWith("ram:", entry);
-        var detail = await Client.GetFunctionAtAsync(entry);
+        var detail = await Client.GetFunctionAtAsync(entry, ct: TestContext.Current.CancellationToken);
         Assert.Equal(entry, detail.EntryPoint);
     }
 
@@ -167,7 +167,7 @@ public sealed class EngineIntegrationTests(IntegrationFixture fixture) : IClassF
     {
         Assert.SkipUnless(fixture.Available, fixture.SkipReason);
         var entry = await FirstFunctionEntryAsync();
-        var detail = await Client.GetInstructionDetailAsync(entry);
+        var detail = await Client.GetInstructionDetailAsync(entry, TestContext.Current.CancellationToken);
         Assert.Equal(entry, detail.Address);
         Assert.False(string.IsNullOrWhiteSpace(detail.Mnemonic));
     }
@@ -181,14 +181,15 @@ public sealed class EngineIntegrationTests(IntegrationFixture fixture) : IClassF
         // Self-sufficient on purpose: the class shares one client, and a sibling test may
         // have left a transiently-imported program on it (which SaveProgram rightly rejects).
         // Test order is not guaranteed, so open the persistent project writable here.
-        await Client.OpenProgramAsync("IT", projectPath: fixture.GprPath, writable: true);
+        var ct = TestContext.Current.CancellationToken;
+        await Client.OpenProgramAsync("IT", projectPath: fixture.GprPath, writable: true, ct: ct);
         var entry = await FirstFunctionEntryAsync();
 
-        await Client.RenameSymbolAtAsync(entry, "IntegrationRenamed");
-        await Client.SaveProgramAsync();
+        await Client.RenameSymbolAtAsync(entry, "IntegrationRenamed", ct);
+        await Client.SaveProgramAsync(ct);
 
-        await Client.OpenProgramAsync("IT", projectPath: fixture.GprPath, writable: false);
-        var symbols = await Client.GetSymbolsAtAsync(entry);
+        await Client.OpenProgramAsync("IT", projectPath: fixture.GprPath, writable: false, ct: ct);
+        var symbols = await Client.GetSymbolsAtAsync(entry, ct);
         Assert.Contains(symbols, s => s.Name == "IntegrationRenamed");
     }
 
@@ -196,7 +197,7 @@ public sealed class EngineIntegrationTests(IntegrationFixture fixture) : IClassF
     public async Task ListLanguages_returns_the_processor_catalog()
     {
         Assert.SkipUnless(fixture.Available, fixture.SkipReason);
-        var langs = await Client.ListLanguagesAsync();
+        var langs = await Client.ListLanguagesAsync(ct: TestContext.Current.CancellationToken);
         Assert.NotEmpty(langs);
         Assert.Contains(langs, l => l.Id == "x86:LE:64:default"); // always present in Ghidra
     }
@@ -207,12 +208,13 @@ public sealed class EngineIntegrationTests(IntegrationFixture fixture) : IClassF
         // OpenProgram with a binary and no project path imports into a scratch program —
         // the "just show me the functions" path, no projectLocation/name.
         Assert.SkipUnless(fixture.Available, fixture.SkipReason);
-        var info = await Client.OpenProgramAsync(fixture.ClassFile); // JVM .class auto-detects the language
+        var ct = TestContext.Current.CancellationToken;
+        var info = await Client.OpenProgramAsync(fixture.ClassFile, ct: ct); // JVM .class auto-detects the language
         Assert.True(info.FunctionCount > 0);
 
-        var fns = await Client.ListFunctionsAsync();
+        var fns = await Client.ListFunctionsAsync(ct: ct);
         Assert.NotEmpty(fns);
-        var dec = await Client.DecompileAtAsync(fns[0].EntryPoint);
+        var dec = await Client.DecompileAtAsync(fns[0].EntryPoint, ct: ct);
         Assert.True(dec.IsSuccess);
     }
 
@@ -220,12 +222,13 @@ public sealed class EngineIntegrationTests(IntegrationFixture fixture) : IClassF
     public async Task GetFunctionReferences_returns_a_functions_outgoing_refs()
     {
         Assert.SkipUnless(fixture.Available, fixture.SkipReason);
-        var fns = await Client.ListFunctionsAsync();
+        var ct = TestContext.Current.CancellationToken;
+        var fns = await Client.ListFunctionsAsync(ct: ct);
 
         var anyWithRefs = false;
         foreach (var fn in fns)
         {
-            if ((await Client.GetFunctionReferencesAsync(fn.EntryPoint)).Count > 0)
+            if ((await Client.GetFunctionReferencesAsync(fn.EntryPoint, ct)).Count > 0)
             {
                 anyWithRefs = true;
                 break;
@@ -238,8 +241,9 @@ public sealed class EngineIntegrationTests(IntegrationFixture fixture) : IClassF
     public async Task ListMemoryBlocks_returns_the_programs_sections()
     {
         Assert.SkipUnless(fixture.Available, fixture.SkipReason);
-        await Client.OpenProgramAsync(fixture.ClassFile);
-        var blocks = await Client.ListMemoryBlocksAsync();
+        var ct = TestContext.Current.CancellationToken;
+        await Client.OpenProgramAsync(fixture.ClassFile, ct: ct);
+        var blocks = await Client.ListMemoryBlocksAsync(ct);
         Assert.NotEmpty(blocks); // every loaded program has at least one memory block
         Assert.All(blocks, b => Assert.False(string.IsNullOrEmpty(b.Name)));
     }
@@ -251,8 +255,9 @@ public sealed class EngineIntegrationTests(IntegrationFixture fixture) : IClassF
         // assert the RPC round-trips a well-formed list. Precise field mapping is covered by the
         // contract test against the fake server.
         Assert.SkipUnless(fixture.Available, fixture.SkipReason);
-        await Client.OpenProgramAsync(fixture.ClassFile);
-        var all = await Client.FindStringsAsync(); // null substring = every defined string
+        var ct = TestContext.Current.CancellationToken;
+        await Client.OpenProgramAsync(fixture.ClassFile, ct: ct);
+        var all = await Client.FindStringsAsync(ct: ct); // null substring = every defined string
         Assert.NotNull(all);
         Assert.All(all, s => Assert.False(string.IsNullOrEmpty(s.Address)));
     }

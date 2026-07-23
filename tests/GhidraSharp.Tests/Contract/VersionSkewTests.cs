@@ -9,7 +9,8 @@ public sealed class VersionSkewTests
         // server older than the client does for a newer RPC.
         await using var fake = await FakeServer.StartAsync<BareFake>();
 
-        var ex = await Assert.ThrowsAsync<GhidraException>(() => fake.Client.ListLanguagesAsync());
+        var ex = await Assert.ThrowsAsync<GhidraException>(
+            () => fake.Client.ListLanguagesAsync(ct: TestContext.Current.CancellationToken));
 
         Assert.Contains("does not implement", ex.Message, StringComparison.OrdinalIgnoreCase);
     }

@@ -45,8 +45,7 @@ indent_size = 2
 [{tests,**/tests}/**.cs]
 dotnet_diagnostic.CA1707.severity = none
 dotnet_diagnostic.CA1711.severity = none
-# xUnit v3 rule, retrofit incrementally: the LSP keeps nudging, the build doesn't block.
-dotnet_diagnostic.xUnit1051.severity = suggestion
+dotnet_diagnostic.xUnit1051.severity = warning
 
 # ---------- GhidraSharp deltas ----------
 # XML docs are a contract for the published library only; sample/tests/bench are not shipped.
