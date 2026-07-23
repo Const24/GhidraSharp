@@ -1,8 +1,11 @@
-# Normalize line endings: LF in the repo, source stays LF on checkout too.
+# Repo and worktree are LF everywhere; CRLF only where the interpreter requires it (cmd.exe).
 * text=auto eol=lf
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
 
-# Windows scripts must stay CRLF.
-*.bat    text eol=crlf
+# Explicit LF for executables Unix runs directly (self-documenting; survives edits above).
+*.sh    text eol=lf
+gradlew text eol=lf
 
-# Binaries.
-*.jar    binary
+# Binaries — never normalized, never diffed.
+*.jar   binary

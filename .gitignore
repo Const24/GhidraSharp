@@ -1,38 +1,57 @@
-# ---- .NET ----
+# Machine-local LSP pointer (absolute path; untracked by decision)
+.csharp-ls-solution
+
+# ---------- .NET ----------
+# Build output (SDK-style)
 bin/
 obj/
-*.user
-.vs/
 artifacts/
-*.nupkg
 
-# ---- Java / Gradle ----
+# Test results & coverage
+TestResults/
+*.trx
+*.coverage
+
+# NuGet — NB: if packages.lock.json is ever adopted here, it IS committed; never ignore it
+*.nupkg
+*.snupkg
+
+# MSBuild diagnostics
+*.binlog
+
+# ---------- Java / Gradle ----------
+# server/build/ is scoped on purpose: a bare build/ would swallow the tracked
+# src/GhidraSharp.Server/build/*.targets. (.gradle/ is unanchored — matches at any depth.)
 .gradle/
 server/build/
-server/.gradle/
+*.class
+hs_err_pid*
 
-# ---- Ghidra ----
+# ---------- Ghidra ----------
 # Scratch projects the server may create while testing.
 *.gpr
 *.rep/
 .ghidra/
 ghidra_scratch/
 
-# ---- Local dev tooling (bootstrap Gradle dist; the wrapper handles Gradle) ----
+# ---------- Local dev tooling (bootstrap Gradle dist; the wrapper handles Gradle) ----------
 .tooling/
 
-# ---- IDE / OS ----
-.idea/
-*.iml
-.DS_Store
-Thumbs.db
-
-# ---- Benchmark dumps ----
+# ---------- Bench / parity harness ----------
 bench/*_dump.txt
-
-# ---- Parity harness output ----
 bench/out/
 
-# ---- Python ----
+# ---------- Python ----------
 __pycache__/
 *.pyc
+.venv/
+
+# ---------- IDE / editor ----------
+.vs/
+.idea/
+*.iml
+*.user
+
+# ---------- OS ----------
+.DS_Store
+Thumbs.db

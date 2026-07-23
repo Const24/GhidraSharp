@@ -293,7 +293,7 @@ internal sealed class HappyFake : ProtoSvc.GhidraSharpServiceBase
 }
 
 /// <summary>Echoes the comment type the client sent (as the error), to verify the
-/// <see cref="CommentType"/> enum &rarr; wire-string mapping in SetComment.</summary>
+/// <see cref="CommentType"/> enum → wire-string mapping in SetComment.</summary>
 internal sealed class CapturingFake : ProtoSvc.GhidraSharpServiceBase
 {
     public override Task<AckReply> SetComment(SetCommentRequest request, ServerCallContext context) =>
